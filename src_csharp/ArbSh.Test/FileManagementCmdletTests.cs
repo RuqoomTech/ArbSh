@@ -37,7 +37,10 @@ public sealed class FileManagementCmdletTests
         string root = CreateTempDirectory();
         string visibleDirectory = Path.Combine(root, "مجلد");
         string visibleFile = Path.Combine(root, "ملف.txt");
-        string hiddenFile = Path.Combine(root, "سري.txt");
+        // Windows hides by attribute; POSIX hides by a leading dot, which .NET
+        // reports as FileAttributes.Hidden and ignores in SetAttributes.
+        string hiddenName = OperatingSystem.IsWindows() ? "سري.txt" : ".سري.txt";
+        string hiddenFile = Path.Combine(root, hiddenName);
 
         Directory.CreateDirectory(visibleDirectory);
         File.WriteAllText(visibleFile, "visible");
@@ -52,11 +55,11 @@ public sealed class FileManagementCmdletTests
             ShellEngine.ExecuteInput("اعرض", sink, session: session);
             Assert.Contains("مجلد/", sink.Outputs);
             Assert.Contains("ملف.txt", sink.Outputs);
-            Assert.DoesNotContain("سري.txt", sink.Outputs);
+            Assert.DoesNotContain(hiddenName, sink.Outputs);
 
             sink.Clear();
             ShellEngine.ExecuteInput("اعرض -مخفي", sink, session: session);
-            Assert.Contains("سري.txt", sink.Outputs);
+            Assert.Contains(hiddenName, sink.Outputs);
             Assert.Empty(sink.Errors);
         }
         finally
