@@ -28,7 +28,8 @@ public sealed class TerminalShellChromeTests
             },
             line => Assert.Equal(string.Empty, line.Text));
         Assert.DoesNotContain(viewModel.Lines, line => line.Text.Contains(workingDirectory, StringComparison.Ordinal));
-        Assert.StartsWith("أربش", viewModel.Title, StringComparison.Ordinal);
+        // مشغلات CI على Windows تعمل بصلاحيات المسؤول، فيتبع العنوان المتوقع حالة التشغيل.
+        Assert.Equal(MainWindowViewModel.IsElevated ? "المسؤول: أربش" : "أربش", viewModel.Title);
     }
 
     [Fact]
