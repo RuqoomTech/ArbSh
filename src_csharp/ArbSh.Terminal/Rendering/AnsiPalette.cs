@@ -56,30 +56,30 @@ public sealed class AnsiPalette
     }
 
     /// <summary>
-    /// لوحة ArbSh الافتراضية للوضع الداكن.
-    /// Default ArbSh dark ANSI palette.
+    /// لوحة Campbell الافتراضية في Windows Terminal.
+    /// Windows Terminal's default Campbell ANSI palette.
     /// </summary>
     /// <returns>لوحة ANSI مهيأة.</returns>
-    public static AnsiPalette CreateArbShNavy()
+    public static AnsiPalette CreateCampbell()
     {
         Color[] colors =
         [
-            Color.Parse("#111827"), // black
-            Color.Parse("#EF4444"), // red
-            Color.Parse("#22C55E"), // green
-            Color.Parse("#F59E0B"), // yellow
-            Color.Parse("#3B82F6"), // blue
-            Color.Parse("#A855F7"), // magenta
-            Color.Parse("#06B6D4"), // cyan
-            Color.Parse("#E5E7EB"), // white
-            Color.Parse("#374151"), // bright black
-            Color.Parse("#F87171"), // bright red
-            Color.Parse("#4ADE80"), // bright green
-            Color.Parse("#FBBF24"), // bright yellow
-            Color.Parse("#60A5FA"), // bright blue
-            Color.Parse("#C084FC"), // bright magenta
-            Color.Parse("#22D3EE"), // bright cyan
-            Color.Parse("#F9FAFB")  // bright white
+            Color.Parse("#0C0C0C"), // black
+            Color.Parse("#C50F1F"), // red
+            Color.Parse("#13A10E"), // green
+            Color.Parse("#C19C00"), // yellow
+            Color.Parse("#0037DA"), // blue
+            Color.Parse("#881798"), // magenta
+            Color.Parse("#3A96DD"), // cyan
+            Color.Parse("#CCCCCC"), // white
+            Color.Parse("#767676"), // bright black
+            Color.Parse("#E74856"), // bright red
+            Color.Parse("#16C60C"), // bright green
+            Color.Parse("#F9F1A5"), // bright yellow
+            Color.Parse("#3B78FF"), // bright blue
+            Color.Parse("#B4009E"), // bright magenta
+            Color.Parse("#61D6D6"), // bright cyan
+            Color.Parse("#F2F2F2")  // bright white
         ];
 
         return new AnsiPalette(colors);

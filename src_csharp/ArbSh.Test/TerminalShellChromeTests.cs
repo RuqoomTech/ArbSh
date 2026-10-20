@@ -13,7 +13,7 @@ public sealed class TerminalShellChromeTests
 
         Assert.Equal(workingDirectory, viewModel.CurrentDirectory);
         Assert.Equal("جاهز", viewModel.StatusText);
-        Assert.Equal("أربش> ", viewModel.Prompt);
+        Assert.Equal($"أربش \u2066{workingDirectory}\u2069>\u200F ", viewModel.Prompt);
         Assert.Collection(
             viewModel.Lines,
             line =>
@@ -25,8 +25,10 @@ public sealed class TerminalShellChromeTests
             {
                 Assert.Equal(TerminalLineKind.System, line.Kind);
                 Assert.Contains("مساعدة", line.Text, StringComparison.Ordinal);
-            });
+            },
+            line => Assert.Equal(string.Empty, line.Text));
         Assert.DoesNotContain(viewModel.Lines, line => line.Text.Contains(workingDirectory, StringComparison.Ordinal));
+        Assert.StartsWith("أربش", viewModel.Title, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -42,10 +44,15 @@ public sealed class TerminalShellChromeTests
             var changedProperties = new List<string?>();
             viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
 
+            string promptBefore = viewModel.Prompt;
             await viewModel.SubmitInputAsync($"انتقل '{child}'");
 
             Assert.Equal(Path.GetFullPath(child), viewModel.CurrentDirectory);
             Assert.Equal("جاهز", viewModel.StatusText);
+            Assert.Contains(viewModel.Lines, line => line.Kind == TerminalLineKind.Input
+                && line.Text == $"{promptBefore}انتقل '{child}'");
+            Assert.Contains(Path.GetFullPath(child), viewModel.Prompt, StringComparison.Ordinal);
+            Assert.Contains(nameof(MainWindowViewModel.Prompt), changedProperties);
             Assert.Contains(nameof(MainWindowViewModel.CurrentDirectory), changedProperties);
             Assert.Contains(nameof(MainWindowViewModel.StatusText), changedProperties);
         }

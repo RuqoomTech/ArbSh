@@ -81,7 +81,8 @@ public sealed class TerminalLayoutEngine
         {
             TerminalLine line = logicalLines[i];
             VisualTextRun run = pipeline.BuildVisualRun(line.Text, line.Kind, config);
-            double x = ResolveX(surfaceSize.Width, run.MeasuredWidth, config, alignRight: run.HasArabic);
+            // الطرفية عربية التخطيط: كل سطر يبدأ من الحافة اليمنى، بما فيه المخرجات اللاتينية.
+            double x = ResolveRightAlignedX(surfaceSize.Width, run.MeasuredWidth, config);
 
             instructions.Add(new TerminalDrawInstruction(
                 new Point(x, y),
@@ -94,8 +95,9 @@ public sealed class TerminalLayoutEngine
         }
 
         VisualTextRun promptRun = pipeline.BuildPromptRun(promptLogical, inputLogical, config);
-        double promptY = Math.Max(top, surfaceSize.Height - bottom - lineHeight);
-        double promptX = ResolveX(surfaceSize.Width, promptRun.MeasuredWidth, config, alignRight: true);
+        // كما في Windows Terminal: يلي الموجه آخر سطر ظاهر، فيبدأ أعلى الشاشة وينزل مع المخرجات.
+        double promptY = y;
+        double promptX = ResolveRightAlignedX(surfaceSize.Width, promptRun.MeasuredWidth, config);
 
         instructions.Add(new TerminalDrawInstruction(
             new Point(promptX, promptY),
@@ -113,14 +115,9 @@ public sealed class TerminalLayoutEngine
             MaxScrollbackOffsetLines: maxScrollbackOffsetLines);
     }
 
-    private static double ResolveX(double width, double textWidth, TerminalRenderConfig config, bool alignRight)
+    private static double ResolveRightAlignedX(double width, double textWidth, TerminalRenderConfig config)
     {
         double left = config.Padding.Left;
-        if (!alignRight)
-        {
-            return left;
-        }
-
         double right = config.Padding.Right;
         return Math.Max(left, width - right - textWidth);
     }

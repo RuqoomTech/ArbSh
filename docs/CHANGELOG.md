@@ -77,6 +77,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The complete Windows suite now passes 175 tests.
 
 ### Changed
+- **Windows Terminal Layout, Mirrored for Arabic**: The Avalonia host now
+  draws its own title bar with right-to-left tabs, a new-tab button, a menu,
+  and left-side caption buttons. It adds independent tab sessions with the
+  Windows Terminal shortcuts, the Campbell palette, a `أربش C:\path> ` prompt
+  that follows the last output line, and right alignment for every output line.
+- **Cairo for Arabic Text**: Bundled the Cairo font (SIL OFL 1.1). Arabic
+  runs and the neutrals between Arabic words now render in Cairo, while Latin
+  text stays in Cascadia Mono. Lines share one baseline.
 - **.NET 10 LTS Baseline**: Migrated every project from .NET 9 to .NET 10 and
   pinned the supported SDK feature band in `global.json`.
 - **Central Build Metadata**: Moved the target framework, language version,

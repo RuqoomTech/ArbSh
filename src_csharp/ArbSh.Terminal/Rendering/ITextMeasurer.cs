@@ -32,7 +32,14 @@ public sealed class AvaloniaTextMeasurer : ITextMeasurer
             return 0;
         }
 
-        FormattedText formatted = config.CreateFormattedText(visualText, Brushes.Transparent);
-        return formatted.Width;
+        // تُحاذى الأسطر كلها إلى اليمين، فيُقاس السطر باتجاه رسمه نفسه، ويُحسب منه ما يظهر قبل الحافة اليمنى:
+        // السطر العربي يُرسم من اليمين فتقع مسافته المنطقية الأخيرة (كمسافة الموجه) على يساره وتدخل في عرضه،
+        // واللاتيني تقع مسافته الأخيرة خلف الحافة.
+        bool rtl = TerminalSurface.IsTextRtl(visualText);
+        FormattedText formatted = config.CreateFormattedText(
+            visualText,
+            Brushes.Transparent,
+            rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight);
+        return rtl ? formatted.WidthIncludingTrailingWhitespace : formatted.Width;
     }
 }

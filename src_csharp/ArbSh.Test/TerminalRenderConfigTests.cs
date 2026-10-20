@@ -10,8 +10,8 @@ public sealed class TerminalRenderConfigTests
     {
         var config = new TerminalRenderConfig();
 
-        Assert.Equal(20, config.FontSize);
-        Assert.Equal(32, config.LineHeight);
+        Assert.Equal(16, config.FontSize);
+        Assert.Equal(26, config.LineHeight);
         Assert.True(config.LineHeight >= config.FontSize * 1.5);
     }
 
@@ -36,7 +36,7 @@ public sealed class TerminalRenderConfigTests
     [Fact]
     public void DefaultThemeTextColors_MeetNormalTextContrast()
     {
-        TerminalTheme theme = TerminalTheme.CreateArbShNavy();
+        TerminalTheme theme = TerminalTheme.CreateCampbell();
         Color[] textColors =
         [
             theme.Foreground,

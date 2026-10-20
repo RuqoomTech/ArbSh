@@ -8,7 +8,7 @@ public sealed class AnsiPaletteTests
     [Fact]
     public void ResolveIndexed_MapsXtermCubeColor()
     {
-        AnsiPalette palette = AnsiPalette.CreateArbShNavy();
+        AnsiPalette palette = AnsiPalette.CreateCampbell();
 
         Color color = palette.ResolveIndexed(196);
 

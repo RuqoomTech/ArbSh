@@ -65,7 +65,7 @@ PTY/ConPTY في الخطوة التالية.
 ### Avalonia Rendering Notes (Phase 5.2)
 - Terminal text is stored and processed in logical order.
 - Visual reordering is applied only inside the rendering pipeline before draw.
-- Output lines that contain Arabic are right-aligned using measured visual text width.
+- Every output line is right-aligned using measured visual text width, so Latin paths and Arabic text share the same right edge.
 - Prompt + input are rendered through the same pipeline for consistent shaping behavior.
 - ANSI escape sequences are parsed at render time and stripped from drawn text.
 - ANSI styling is applied per span (foreground/background + decorations) without mutating logical history.
@@ -78,17 +78,28 @@ PTY/ConPTY في الخطوة التالية.
 - Mouse click places caret and mouse drag extends selection in the prompt line.
 
 ### Avalonia Terminal Emulator Notes (Phase 5.4)
-- Mouse wheel scrolls output history while keeping the prompt pinned at the bottom.
+- The prompt follows the last output line, as in Windows Terminal, and stays inside the viewport once output overflows.
+- Mouse wheel scrolls output history.
 - `PageUp` and `PageDown` navigate scrollback by viewport-sized steps.
 - Click/drag in output history selects full lines across visible rows.
 - `Ctrl + C` copies selected output lines first; if no output selection exists, it copies selected prompt input.
 - Copied output is emitted in logical line order so external editors receive stable text.
 
 ### Avalonia Typography & Theme Notes (Phase 5 Closure)
-- Terminal host bundles font assets (`CascadiaMono.ttf`, `arabtype.ttf`) and prefers modern Arabic UI system fonts before the bundled compatibility fallback.
-- Default terminal text is 20 logical pixels with a 32-pixel line height and uses the high-contrast ArbSh navy palette.
+- Arabic runs, and the spaces and punctuation between Arabic words, render in the bundled Cairo font (`Cairo.ttf`, SIL Open Font License, see `Cairo-OFL.txt`); Latin text, paths, and code stay in the bundled `CascadiaMono.ttf`.
+- Lines share one baseline, so Latin-only lines sit level with lines that mix in Cairo's taller Arabic glyphs.
+- Default terminal text is 16 logical pixels with a 26-pixel line height on the Windows Terminal Campbell palette (`#0C0C0C` background, `#CCCCCC` text).
 - `Ctrl + +` and `Ctrl + -` zoom the terminal text, `Ctrl + 0` restores the default, and holding `Ctrl` while using the mouse wheel zooms in or out.
 - ANSI indexed and truecolor output is mapped through a dedicated terminal palette for readability.
+
+### Avalonia Window & Tabs (Windows Terminal Layout, Mirrored)
+- The window draws its own title bar: tabs, `+`, and the `⌄` menu start from the right; minimize, maximize, and close sit on the left, as in Arabic Windows.
+- The prompt reads `أربش C:\path> ` from the right edge; the path is isolated left-to-right and the `>` (shown as `<`) points at the command typed after it, Arabic or Latin.
+- Copying output removes the invisible direction marks the prompt uses.
+- Each tab runs an independent session that starts in the current tab's directory.
+- `Ctrl + Shift + T` opens a tab, `Ctrl + Shift + W` closes it (the last tab closes the window), `Ctrl + Shift + N` opens a new window, and `Ctrl + Tab` / `Ctrl + Shift + Tab` switch tabs. Middle-click closes a tab.
+- Double-click the title bar to maximize or restore; drag it to move the window.
+- Elevated sessions show a shield in the title bar and the `المسؤول: أربش` tab title.
 
 ## Available Commands
 

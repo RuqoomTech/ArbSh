@@ -43,4 +43,18 @@ public sealed class OutputSelectionBufferTests
 
         Assert.Equal("line-1", selected);
     }
+
+    [Fact]
+    public void GetSelectedText_RemovesDirectionalMarksFromPromptEcho()
+    {
+        var buffer = new OutputSelectionBuffer();
+        var lines = new List<TerminalLine>
+        {
+            new("أربش \u2066C:\\Users\u2069>\u200F المسار", TerminalLineKind.Input, DateTimeOffset.UtcNow)
+        };
+
+        buffer.BeginOrExtend(0, extendSelection: false);
+
+        Assert.Equal("أربش C:\\Users> المسار", buffer.GetSelectedText(lines));
+    }
 }

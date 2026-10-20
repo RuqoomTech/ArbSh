@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
+using Avalonia.Utilities;
 using ArbSh.Terminal.Models;
 
 namespace ArbSh.Terminal.Rendering;
@@ -15,35 +16,42 @@ public sealed class TerminalRenderConfig
     /// <summary>
     /// مقاس الخط الافتراضي المقروء على شاشات سطح المكتب عالية الكثافة.
     /// </summary>
-    public const double DefaultFontSize = 20;
+    public const double DefaultFontSize = 16;
 
     /// <summary>
     /// أصغر وأكبر مقاس مسموح بهما لتكبير الطرفية.
     /// </summary>
-    public const double MinimumFontSize = 14;
+    public const double MinimumFontSize = 12;
     public const double MaximumFontSize = 32;
 
     /// <summary>
-    /// سمة ArbSh المستخدمة في ألوان الواجهة الافتراضية.
-    /// ArbSh UI theme used for default terminal colors.
+    /// سمة Campbell المستخدمة في ألوان الواجهة الافتراضية.
+    /// Campbell theme used for default terminal colors.
     /// </summary>
-    public TerminalTheme Theme { get; init; } = TerminalTheme.CreateArbShNavy();
+    public TerminalTheme Theme { get; init; } = TerminalTheme.CreateCampbell();
 
     /// <summary>
     /// لوحة ألوان ANSI المستخدمة لحل الأكواد المفهرسة.
     /// ANSI palette used to resolve indexed color codes.
     /// </summary>
-    public AnsiPalette Palette { get; init; } = AnsiPalette.CreateArbShNavy();
+    public AnsiPalette Palette { get; init; } = AnsiPalette.CreateCampbell();
 
     /// <summary>
-    /// عائلة الخط الأساسية مع سلسلة بدائل وقت التشغيل.
-    /// Primary font family with runtime fallback chain.
+    /// عائلة الخط الأساسية: Cascadia Mono للاتينية، وCairo للعربية لأن الأول لا يحوي حروفًا عربية.
+    /// Primary font family: Cascadia Mono for Latin text, falling back to Cairo for Arabic.
     /// </summary>
     public FontFamily FontFamily { get; init; } = new(
         "avares://ArbSh.Terminal/Assets/Fonts/CascadiaMono.ttf#Cascadia Mono, " +
-        "Noto Sans Arabic UI, Segoe UI, Tahoma, " +
-        "avares://ArbSh.Terminal/Assets/Fonts/arabtype.ttf#Arabic Typesetting, " +
-        "Cascadia Mono, Cascadia Code, Consolas, Courier New");
+        "avares://ArbSh.Terminal/Assets/Fonts/Cairo.ttf#Cairo, " +
+        "Cascadia Mono, Consolas, Segoe UI, Noto Sans Arabic UI, Tahoma, Courier New");
+
+    /// <summary>
+    /// خط المقاطع العربية التي يحددها <see cref="ArabicTextRuns"/>.
+    /// Font for the Arabic runs found by <see cref="ArabicTextRuns"/>.
+    /// </summary>
+    public FontFamily ArabicFontFamily { get; init; } = new(
+        "avares://ArbSh.Terminal/Assets/Fonts/Cairo.ttf#Cairo, " +
+        "Segoe UI, Noto Sans Arabic UI, Tahoma");
 
     /// <summary>
     /// مقاس الخط المستخدم في الرسم.
@@ -51,41 +59,44 @@ public sealed class TerminalRenderConfig
     /// </summary>
     public double FontSize { get; private set; } = DefaultFontSize;
 
+    private double _referenceBaseline;
+    private double _referenceBaselineFontSize = double.NaN;
+
     /// <summary>
     /// ارتفاع السطر في مساحة الرسم.
     /// Line height for terminal rows.
     /// </summary>
-    public double LineHeight { get; set; } = 32;
+    public double LineHeight { get; set; } = 26;
 
     /// <summary>
     /// الهوامش الداخلية لسطح الرسم.
     /// Surface padding.
     /// </summary>
-    public Thickness Padding { get; init; } = new(22, 16, 22, 16);
+    public Thickness Padding { get; init; } = new(12, 10, 12, 10);
 
     /// <summary>
     /// لون الخلفية.
     /// Surface background brush.
     /// </summary>
-    public IBrush BackgroundBrush { get; init; } = new SolidColorBrush(Color.Parse("#0E1420"));
+    public IBrush BackgroundBrush { get; init; } = new SolidColorBrush(Color.Parse("#0C0C0C"));
 
     /// <summary>
     /// لون سطر الموجّه (Prompt).
     /// Prompt line brush.
     /// </summary>
-    public IBrush PromptBrush { get; init; } = new SolidColorBrush(Color.Parse("#F5F5F5"));
+    public IBrush PromptBrush { get; init; } = new SolidColorBrush(Color.Parse("#CCCCCC"));
 
     /// <summary>
     /// لون خلفية التحديد داخل سطر الإدخال.
     /// Selection background brush for input line.
     /// </summary>
-    public IBrush SelectionBrush { get; init; } = new SolidColorBrush(Color.FromArgb(96, 80, 150, 255));
+    public IBrush SelectionBrush { get; init; } = new SolidColorBrush(Color.FromArgb(96, 255, 255, 255));
 
     /// <summary>
     /// لون خلفية تحديد أسطر المخرجات.
     /// Selection background brush for output lines.
     /// </summary>
-    public IBrush OutputSelectionBrush { get; init; } = new SolidColorBrush(Color.FromArgb(72, 75, 130, 220));
+    public IBrush OutputSelectionBrush { get; init; } = new SolidColorBrush(Color.FromArgb(96, 255, 255, 255));
 
     /// <summary>
     /// عدد الأسطر التي يتم تمريرها لكل خطوة عجلة.
@@ -134,13 +145,20 @@ public sealed class TerminalRenderConfig
     /// <returns>كائن النص المنسق.</returns>
     public FormattedText CreateFormattedText(string text, IBrush brush, FlowDirection flowDirection = FlowDirection.LeftToRight)
     {
-        return new FormattedText(
+        var formatted = new FormattedText(
             text,
             CultureInfo.CurrentCulture,
             flowDirection,
             Typeface,
             FontSize,
             brush);
+
+        foreach ((int start, int length) in ArabicTextRuns.Find(text))
+        {
+            formatted.SetFontFamily(ArabicFontFamily, start, length);
+        }
+
+        return formatted;
     }
 
     /// <summary>
@@ -168,7 +186,38 @@ public sealed class TerminalRenderConfig
             lineHeight: LineHeight,
             letterSpacing: 0,
             maxLines: 1,
-            textStyleOverrides: null);
+            textStyleOverrides: CreateArabicOverrides(text, brush));
+    }
+
+    /// <summary>
+    /// يعيد الإزاحة الرأسية التي تضع خط أساس السطر على خط أساس موحد لكل الأسطر.
+    /// للخط العربي صعود أعلى من الخط اللاتيني، فبدون هذه الإزاحة يعلو السطر اللاتيني عن جاره العربي.
+    /// </summary>
+    /// <param name="baseline">خط أساس النص المنسق المراد رسمه.</param>
+    public double GetBaselineOffset(double baseline)
+    {
+        if (_referenceBaselineFontSize != FontSize)
+        {
+            _referenceBaseline = CreateFormattedText("Aأ", Brushes.Transparent).Baseline;
+            _referenceBaselineFontSize = FontSize;
+        }
+
+        return Math.Max(0, _referenceBaseline - baseline);
+    }
+
+    private List<ValueSpan<TextRunProperties>>? CreateArabicOverrides(string text, IBrush brush)
+    {
+        IReadOnlyList<(int Start, int Length)> runs = ArabicTextRuns.Find(text);
+        if (runs.Count == 0)
+        {
+            return null;
+        }
+
+        var properties = new GenericTextRunProperties(
+            new Typeface(ArabicFontFamily),
+            FontSize,
+            foregroundBrush: brush);
+        return [.. runs.Select(run => new ValueSpan<TextRunProperties>(run.Start, run.Length, properties))];
     }
 
     /// <summary>

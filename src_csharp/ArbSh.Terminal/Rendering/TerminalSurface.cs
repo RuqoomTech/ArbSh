@@ -47,12 +47,14 @@ public sealed class TerminalSurface : Control
         if (_viewModel is not null)
         {
             _viewModel.BufferChanged -= HandleBufferChanged;
+            _viewModel.PropertyChanged -= HandleViewModelPropertyChanged;
         }
 
         _viewModel = DataContext as MainWindowViewModel;
         if (_viewModel is not null)
         {
             _viewModel.BufferChanged += HandleBufferChanged;
+            _viewModel.PropertyChanged += HandleViewModelPropertyChanged;
             _lastKnownLineCount = _viewModel.Lines.Count;
         }
         else
@@ -409,7 +411,7 @@ public sealed class TerminalSurface : Control
 
         FormattedText formatted = _renderConfig.CreateFormattedText(instruction.Run.VisualText, instruction.Brush, flow);
         ApplyAnsiForegroundStyles(formatted, instruction);
-        context.DrawText(formatted, instruction.Position);
+        context.DrawText(formatted, instruction.Position + new Vector(0, _renderConfig.GetBaselineOffset(formatted.Baseline)));
     }
 
     private void DrawSelection(DrawingContext context, PromptLayoutSnapshot snapshot)
@@ -1000,7 +1002,7 @@ public sealed class TerminalSurface : Control
         return hit.FirstCharacterIndex + Math.Max(0, hit.TrailingLength);
     }
 
-    private static bool IsTextRtl(string logical)
+    internal static bool IsTextRtl(string logical)
     {
         if (string.IsNullOrWhiteSpace(logical))
         {
@@ -1015,6 +1017,20 @@ public sealed class TerminalSurface : Control
         catch
         {
             return false;
+        }
+    }
+
+    private void HandleViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // يتغير الموجه مع المجلد الحالي ولو لم يطبع الأمر شيئًا.
+        if (e.PropertyName == nameof(MainWindowViewModel.Prompt))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                _frameSnapshot = null;
+                _promptSnapshot = null;
+                InvalidateVisual();
+            });
         }
     }
 

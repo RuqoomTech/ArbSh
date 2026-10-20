@@ -109,9 +109,19 @@ public sealed class OutputSelectionBuffer
         var selected = new List<string>(clampedEnd - clampedStart + 1);
         for (int i = clampedStart; i <= clampedEnd; i++)
         {
-            selected.Add(lines[i].Text);
+            selected.Add(StripDirectionalIsolates(lines[i].Text));
         }
 
         return string.Join(Environment.NewLine, selected);
     }
+
+    // تضبط أسطر الموجه اتجاه المسار بعلامات غير مرئية؛ لا تُنسخ إلى الحافظة.
+    private static string StripDirectionalIsolates(string text)
+    {
+        return text.IndexOfAny(DirectionalMarks) < 0
+            ? text
+            : string.Concat(text.Where(c => Array.IndexOf(DirectionalMarks, c) < 0));
+    }
+
+    private static readonly char[] DirectionalMarks = ['\u200E', '\u200F', '\u2066', '\u2067', '\u2068', '\u2069'];
 }

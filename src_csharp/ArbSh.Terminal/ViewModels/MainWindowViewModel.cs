@@ -21,6 +21,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _readonlyLines = new ReadOnlyObservableCollection<TerminalLine>(_lines);
         AddLine("مرحبًا بك في أربش", TerminalLineKind.System);
         AddLine("صدفة عربية حديثة — اكتب «الأوامر» للقائمة أو «مساعدة» للدليل.", TerminalLineKind.System);
+        AddLine(string.Empty, TerminalLineKind.System);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -46,7 +47,26 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
-    public string Prompt { get; } = "أربش> ";
+    /// <summary>
+    /// الموجه على نمط «PS المسار> » في Windows Terminal، معكوسًا للعربية.
+    /// يُعزل المسار باتجاه يسار-يمين كي لا يعيد BiDi ترتيب فواصله حول أسماء المجلدات العربية،
+    /// وتتبع «>» علامة يمين-يسار كي يبقى الأمر اللاتيني المكتوب بعدها على يسارها لا ملتصقًا بالمسار.
+    /// </summary>
+    public string Prompt => $"أربش {LeftToRightIsolate}{_session.CurrentDirectory}{PopDirectionalIsolate}>{RightToLeftMark} ";
+
+    /// <summary>
+    /// عنوان علامة التبويب، مسبوقًا بـ«المسؤول» عند التشغيل بصلاحيات مرتفعة كما في Windows Terminal.
+    /// </summary>
+    public string Title => IsElevated ? "المسؤول: أربش" : "أربش";
+
+    /// <summary>
+    /// هل تعمل العملية بصلاحيات المسؤول.
+    /// </summary>
+    public static bool IsElevated { get; } = DetectElevation();
+
+    private const char LeftToRightIsolate = '\u2066';
+    private const char PopDirectionalIsolate = '\u2069';
+    private const char RightToLeftMark = '\u200F';
 
     public async Task SubmitInputAsync(string logicalInput, CancellationToken cancellationToken = default)
     {
@@ -55,7 +75,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        AddLine(logicalInput, TerminalLineKind.Input);
+        // يبقى الأمر في السجل بعد موجهه، كما تعرضه الطرفيات المعتادة.
+        AddLine(Prompt + logicalInput, TerminalLineKind.Input);
 
         string trimmedInput = logicalInput.Trim();
         if (string.Equals(trimmedInput, ExitCommand, StringComparison.Ordinal))
@@ -89,6 +110,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         finally
         {
             OnPropertyChanged(nameof(CurrentDirectory));
+            OnPropertyChanged(nameof(Prompt));
             StatusText = "جاهز";
         }
     }
@@ -114,6 +136,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         BufferChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static bool DetectElevation()
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                return new System.Security.Principal.WindowsPrincipal(identity)
+                    .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+
+            return Environment.UserName == "root";
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

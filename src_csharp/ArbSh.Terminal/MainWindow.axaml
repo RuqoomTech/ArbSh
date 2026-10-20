@@ -1,113 +1,205 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:rendering="clr-namespace:ArbSh.Terminal.Rendering"
-        xmlns:vm="clr-namespace:ArbSh.Terminal.ViewModels"
+        xmlns:local="clr-namespace:ArbSh.Terminal"
         x:Class="ArbSh.Terminal.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Title="أربش — الطرفية العربية"
+        Title="أربش"
         Icon="/Assets/Brand/ArbShIcon.ico"
-        Width="1200"
-        Height="760"
-        MinWidth="820"
-        MinHeight="520"
-        Background="#080C14"
-        FontFamily="Segoe UI, Noto Sans Arabic UI, Arial">
-  <Grid RowDefinitions="66,*,38">
-    <Border Grid.Row="0"
-            Background="#0D1320"
-            BorderBrush="#202A3B"
-            BorderThickness="0,0,0,1"
-            Padding="18,10">
-      <Grid ColumnDefinitions="*,Auto">
-        <Border Grid.Column="0"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Center"
-                MaxWidth="620"
-                Background="#111A29"
-                BorderBrush="#253249"
-                BorderThickness="1"
-                CornerRadius="7"
-                Padding="12,6">
-          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-            <TextBlock Grid.Column="0"
-                       Text="المجلد"
-                       Foreground="#A1B3CD"
-                       FontSize="13"
-                       VerticalAlignment="Center" />
-            <TextBlock Grid.Column="1"
-                       Text="{Binding CurrentDirectory}"
-                       Foreground="#E0E9F6"
-                       FontFamily="Cascadia Mono, Consolas"
-                       FontSize="13"
+        Width="1120"
+        Height="640"
+        MinWidth="520"
+        MinHeight="320"
+        Background="#0C0C0C"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="40"
+        FontFamily="avares://ArbSh.Terminal/Assets/Fonts/Cairo.ttf#Cairo, Segoe UI, Tahoma">
+  <!--
+    نسخة معكوسة من Windows Terminal: شريط العنوان يحمل علامات التبويب من اليمين،
+    وأزرار النافذة على اليسار كما في واجهة Windows العربية، وتحته الطرفية مباشرة.
+  -->
+  <Window.Styles>
+    <Style Selector="Button.chrome">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chrome:pressed">
+      <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="Button.chrome:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#3D3D3D" />
+    </Style>
+    <Style Selector="Button.chrome:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#353535" />
+    </Style>
+    <Style Selector="Button.caption-close:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#C42B1C" />
+    </Style>
+    <Style Selector="Button.caption-close:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#B22A1B" />
+    </Style>
+    <Style Selector="Button.rounded">
+      <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="Path.glyph">
+      <Setter Property="Stroke" Value="#FFFFFF" />
+      <Setter Property="StrokeThickness" Value="1" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.tab">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.tab:pointerover">
+      <Setter Property="Background" Value="#383838" />
+    </Style>
+    <Style Selector="Border.tab.selected">
+      <Setter Property="Background" Value="#0C0C0C" />
+    </Style>
+    <Style Selector="Border.tab Button.tab-close">
+      <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter">
+      <Setter Property="FlowDirection" Value="RightToLeft" />
+      <Setter Property="Background" Value="#2C2C2C" />
+    </Style>
+  </Window.Styles>
+
+  <Grid x:Name="RootGrid"
+        RowDefinitions="40,*"
+        Margin="{Binding $parent[Window].OffScreenMargin}">
+    <Grid x:Name="TitleBar"
+          Grid.Row="0"
+          Background="#2E2E2E"
+          FlowDirection="RightToLeft"
+          ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto"
+          PointerPressed="TitleBar_PointerPressed">
+      <!-- درع المسؤول، كما يظهره Windows Terminal عند التشغيل بصلاحيات مرتفعة. -->
+      <Panel x:Name="ShieldIcon"
+             Grid.Column="0"
+             Width="34"
+             IsVisible="False">
+        <Path Classes="glyph"
+              Stroke="#A6A6A6"
+              Data="M6,0 L12,2.2 L12,7 C12,10.6 9.4,13 6,14 C2.6,13 0,10.6 0,7 L0,2.2 Z" />
+      </Panel>
+      <Panel x:Name="ShieldSpacer" Grid.Column="0" Width="8" />
+
+      <ItemsControl x:Name="TabStrip"
+                    Grid.Column="1"
+                    VerticalAlignment="Bottom">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="local:TerminalTab">
+            <Border Classes="tab"
+                    Classes.selected="{Binding IsSelected}"
+                    Width="{Binding Width}"
+                    Height="32"
+                    CornerRadius="8,8,0,0"
+                    ToolTip.Tip="{Binding Session.CurrentDirectory}"
+                    PointerPressed="Tab_PointerPressed">
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0,4,0">
+                <Image Grid.Column="0"
+                       Width="16"
+                       Height="16"
                        FlowDirection="LeftToRight"
-                       TextTrimming="CharacterEllipsis"
+                       Source="/Assets/Brand/ArbShIcon.png"
                        VerticalAlignment="Center" />
-          </Grid>
-        </Border>
+                <TextBlock Grid.Column="1"
+                           Margin="10,0,6,1"
+                           Text="{Binding Title}"
+                           Foreground="#FFFFFF"
+                           FontSize="12"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="2"
+                        Classes="chrome rounded tab-close"
+                        Width="28"
+                        Height="24"
+                        ToolTip.Tip="إغلاق علامة التبويب"
+                        Click="CloseTabButton_Click">
+                  <Path Classes="glyph" Data="M0,0 L8,8 M8,0 L0,8" />
+                </Button>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
 
-        <StackPanel Grid.Column="1"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Spacing="11">
-          <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="أربش"
-                       Foreground="#F4F8FF"
-                       FontSize="20"
-                       FontWeight="SemiBold"
-                       HorizontalAlignment="Right" />
-            <TextBlock Text="الطرفية العربية"
-                       Foreground="#AABAD1"
-                       FontSize="12"
-                       HorizontalAlignment="Right" />
-          </StackPanel>
-          <Image Width="40"
-                 Height="40"
-                 Source="/Assets/Brand/ArbShIcon.png"
-                 Stretch="Uniform"
-                 VerticalAlignment="Center" />
-        </StackPanel>
-      </Grid>
-    </Border>
+      <Button Grid.Column="2"
+              Classes="chrome rounded"
+              Width="40"
+              Height="30"
+              Margin="4,4,0,2"
+              VerticalAlignment="Bottom"
+              ToolTip.Tip="علامة تبويب جديدة (Ctrl+Shift+T)"
+              Click="NewTabButton_Click">
+        <Path Classes="glyph" Data="M5,0 L5,10 M0,5 L10,5" />
+      </Button>
 
-    <Border Grid.Row="1"
-            Margin="12,10,12,9"
-            Background="#0E1420"
-            BorderBrush="#202C40"
-            BorderThickness="1"
-            CornerRadius="9"
-            ClipToBounds="True">
-      <rendering:TerminalSurface x:Name="TerminalSurface" />
-    </Border>
+      <Button Grid.Column="3"
+              Classes="chrome rounded"
+              Width="32"
+              Height="30"
+              Margin="0,4,0,2"
+              VerticalAlignment="Bottom"
+              ToolTip.Tip="فتح قائمة">
+        <Path Classes="glyph" Data="M0,0 L5,5 L10,0" />
+        <Button.Flyout>
+          <MenuFlyout>
+            <MenuItem Header="علامة تبويب جديدة" InputGesture="Ctrl+Shift+T" Click="NewTabButton_Click" />
+            <MenuItem Header="نافذة جديدة" InputGesture="Ctrl+Shift+N" Click="NewWindowMenuItem_Click" />
+            <Separator />
+            <MenuItem Header="إغلاق علامة التبويب" InputGesture="Ctrl+Shift+W" Click="CloseCurrentTabMenuItem_Click" />
+          </MenuFlyout>
+        </Button.Flyout>
+      </Button>
 
-    <Border Grid.Row="2"
-            Background="#0B111C"
-            BorderBrush="#202A3B"
-            BorderThickness="0,1,0,0"
-            Padding="14,0">
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <TextBlock Grid.Column="0"
-                   Text="أربش 0.8.1-alpha  •  UTF-8"
-                   Foreground="#91A5C2"
-                   FontSize="12"
-                   VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1"
-                   Text="Enter تنفيذ   •   Ctrl+C نسخ   •   Ctrl+± حجم الخط   •   PgUp/PgDn السجل"
-                   Foreground="#91A5C2"
-                   FontSize="12"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center" />
-        <StackPanel Grid.Column="2"
-                    Orientation="Horizontal"
-                    Spacing="7"
-                    VerticalAlignment="Center">
-          <Ellipse Width="7" Height="7" Fill="#35D49A" />
-          <TextBlock Text="{Binding StatusText}"
-                     Foreground="#D2DDEC"
-                     FontSize="12"
-                     VerticalAlignment="Center" />
-        </StackPanel>
-      </Grid>
-    </Border>
+      <StackPanel Grid.Column="5"
+                  Orientation="Horizontal"
+                  VerticalAlignment="Top">
+        <Button Classes="chrome"
+                Width="46"
+                Height="40"
+                ToolTip.Tip="تصغير"
+                Click="MinimizeButton_Click">
+          <Path Classes="glyph" Data="M0,0 L10,0" />
+        </Button>
+        <Button Classes="chrome"
+                Width="46"
+                Height="40"
+                ToolTip.Tip="تكبير"
+                Click="MaximizeButton_Click">
+          <Panel>
+            <Path x:Name="MaximizeGlyph" Classes="glyph" Data="M0,0 L10,0 L10,10 L0,10 Z" />
+            <Path x:Name="RestoreGlyph"
+                  Classes="glyph"
+                  IsVisible="False"
+                  Data="M0,2 L8,2 L8,10 L0,10 Z M2,2 L2,0 L10,0 L10,8 L8,8" />
+          </Panel>
+        </Button>
+        <Button Classes="chrome caption-close"
+                Width="46"
+                Height="40"
+                ToolTip.Tip="إغلاق"
+                Click="CloseWindowButton_Click">
+          <Path Classes="glyph" Data="M0,0 L10,10 M10,0 L0,10" />
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- يرسم السطح اتجاه كل سطر بنفسه، فيبقى خارج قلب الاتجاه الذي يطبقه شريط العنوان. -->
+    <Panel x:Name="SurfaceHost"
+           Grid.Row="1"
+           FlowDirection="LeftToRight"
+           Background="#0C0C0C" />
   </Grid>
 </Window>
