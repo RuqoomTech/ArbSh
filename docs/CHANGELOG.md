@@ -75,6 +75,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   description, every public parameter must provide an Arabic name, and smoke
   tests execute every engine command without exposing legacy English aliases.
   The complete Windows suite now passes 175 tests.
+- **`تشغيل` for Baa and Takween**: `تشغيل ملف.baa [وسائط]` compiles a single
+  Baa file with `baa -o` into a private temporary directory, runs it with the
+  remaining arguments, and deletes it afterwards; `تشغيل [مجلد] [وسائط]` runs
+  the nearest `مشروع.تكوين` project (or the given one) through
+  `تكوين تشغيل` from its root. Diagnostics stream unchanged, a failed compile
+  stops before the run, and the program's or Takween's exit code becomes the
+  shell's. Thirteen planner and executor tests, plus a CI job that builds the
+  pinned Baa, Nazm, and Takween and runs real files and projects on Windows and
+  Linux.
 
 ### Changed
 - **Windows Terminal Layout, Mirrored for Arabic**: The Avalonia host now

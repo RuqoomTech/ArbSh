@@ -98,7 +98,7 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 
 #### 6.1 Hosting the Baa Compiler
 - [ ] **Compiler Output Rendering:** Ensure the terminal flawlessly displays the Arabic stdout/stderr produced by the Baa compiler.
-- [ ] **Script Execution:** Support executing `.baa` script files directly from the ArbSh command line (`ArbSh> شغل برنامج.baa`).
+- [x] **Script Execution:** `تشغيل برنامج.baa` compiles through `baa` into a temporary directory and runs the program; `تشغيل` alone runs the nearest Takween project through `تكوين تشغيل`, preserving exit codes and diagnostics.
 - [ ] **Baa Interactive Mode:** Support dropping the shell into a Baa REPL session with proper state preservation.
 
 #### 6.2 General Process Management (Pseudo-TTY)

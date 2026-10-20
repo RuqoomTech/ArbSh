@@ -8,6 +8,7 @@ using System.IO; // For StreamWriter
 using System.Threading;
 using System.Threading.Tasks; // Added for Task support
 using ArbSh.Core.Commands;
+using ArbSh.Core.Eco;
 using ArbSh.Core.Processes;
 using static ArbSh.Core.ParsedCommand; // For RedirectionInfo etc.
 
@@ -139,7 +140,10 @@ namespace ArbSh.Core
 
                     // TODO: Implement redirection handling *before* cmdlet execution (e.g., setting StdOut/StdErr for the task/process)
 
-                    if (cmdletType != null)
+                    // «تشغيل» أمر عربي مسجل، لكنه ينفذ عمليات باء وتكوين بوسائطه الخام.
+                    bool isEcoRun = cmdletType == typeof(RunCmdlet);
+
+                    if (cmdletType != null && !isEcoRun)
                     {
                         // --- Create and add the task for this pipeline stage ---
                         var pipelineTask = Task.Run(() =>
@@ -232,83 +236,55 @@ namespace ArbSh.Core
                         Task externalTask = Task.Run(async () =>
                         {
                             CoreConsole.WriteLine($"DEBUG (Executor External): Starting '{currentCommand.CommandName}'.");
+                            EcoRunPlan? runPlan = null;
                             try
                             {
                                 string? standardInput = ReadPipelineInput(currentInputCollection);
-                                var request = new ExternalProcessRequest(
-                                    currentCommand.CommandName,
-                                    currentCommand.InvocationArguments,
-                                    ShellSessionContext.CurrentDirectory,
-                                    standardInputMode: standardInput is null
-                                        ? ExternalProcessInputMode.Closed
-                                        : ExternalProcessInputMode.Text,
-                                    standardInputText: standardInput);
-
-                                ExternalProcessResult result;
-                                if (externalProcessRunner is IStreamingExternalProcessRunner streamingRunner)
+                                IReadOnlyList<EcoRunStep> steps;
+                                if (isEcoRun)
                                 {
-                                    var processOutputSink = new PipelineProcessOutputSink(outputCollection);
-                                    try
+                                    runPlan = EcoRunPlanner.Plan(
+                                        currentCommand.InvocationArguments,
+                                        ShellSessionContext.CurrentDirectory,
+                                        standardInput);
+                                    if (runPlan.Error is not null)
                                     {
-                                        result = await streamingRunner
-                                            .RunStreamingAsync(request, processOutputSink, cancellationToken)
-                                            .ConfigureAwait(false);
+                                        stageExitCodes[stageIndex] = EcoRunPlanner.UsageExitCode;
+                                        outputCollection.Add(new PipelineObject(runPlan.Error, isError: true));
+                                        return;
                                     }
-                                    finally
-                                    {
-                                        processOutputSink.Flush();
-                                    }
+
+                                    steps = runPlan.Steps;
                                 }
                                 else
                                 {
-                                    result = await externalProcessRunner
-                                        .RunAsync(request, cancellationToken)
-                                        .ConfigureAwait(false);
-
-                                    AddProcessText(outputCollection, result.StandardOutput, isError: false);
-                                    AddProcessText(outputCollection, result.StandardError, isError: true);
+                                    var request = new ExternalProcessRequest(
+                                        currentCommand.CommandName,
+                                        currentCommand.InvocationArguments,
+                                        ShellSessionContext.CurrentDirectory,
+                                        standardInputMode: standardInput is null
+                                            ? ExternalProcessInputMode.Closed
+                                            : ExternalProcessInputMode.Text,
+                                        standardInputText: standardInput);
+                                    steps = [new EcoRunStep(request, currentCommand.CommandName)];
                                 }
 
-                                stageExitCodes[stageIndex] = result.TerminationReason switch
+                                // تتوقف الخطوات المتتالية (ترجمة ثم تشغيل) عند أول رمز غير صفري.
+                                int exitCode = 0;
+                                foreach (EcoRunStep step in steps)
                                 {
-                                    ExternalProcessTerminationReason.Exited => result.ExitCode ?? 1,
-                                    ExternalProcessTerminationReason.Cancelled => 130,
-                                    ExternalProcessTerminationReason.LaunchFailed => 127,
-                                    ExternalProcessTerminationReason.OwnershipFailed => 125,
-                                    _ => 1
-                                };
-
-                                if (result.TerminationReason is ExternalProcessTerminationReason.LaunchFailed)
-                                {
-                                    string detail = string.IsNullOrWhiteSpace(result.FailureMessage)
-                                        ? "لم يقدم النظام تفاصيل إضافية."
-                                        : result.FailureMessage;
-                                    outputCollection.Add(new PipelineObject(
-                                        $"تعذر تشغيل الأمر الخارجي '{currentCommand.CommandName}': {detail}",
-                                        isError: true));
-                                }
-                                else if (result.TerminationReason is ExternalProcessTerminationReason.Cancelled)
-                                {
-                                    outputCollection.Add(new PipelineObject(
-                                        $"أُلغي الأمر الخارجي '{currentCommand.CommandName}'.",
-                                        isError: true));
-
-                                    if (!string.IsNullOrWhiteSpace(result.FailureMessage))
+                                    exitCode = await RunExternalStepAsync(
+                                        step,
+                                        outputCollection,
+                                        externalProcessRunner,
+                                        cancellationToken).ConfigureAwait(false);
+                                    if (exitCode != 0)
                                     {
-                                        outputCollection.Add(new PipelineObject(
-                                            $"تعذر إنهاء شجرة الأمر عبر مالكها؛ استُخدم الإنهاء الاحتياطي: {result.FailureMessage}",
-                                            isError: true));
+                                        break;
                                     }
                                 }
-                                else if (result.TerminationReason is ExternalProcessTerminationReason.OwnershipFailed)
-                                {
-                                    string detail = string.IsNullOrWhiteSpace(result.FailureMessage)
-                                        ? "لم يقدم النظام تفاصيل إضافية."
-                                        : result.FailureMessage;
-                                    outputCollection.Add(new PipelineObject(
-                                        $"تعذر امتلاك شجرة الأمر الخارجي '{currentCommand.CommandName}': {detail}",
-                                        isError: true));
-                                }
+
+                                stageExitCodes[stageIndex] = exitCode;
                             }
                             catch (Exception ex)
                             {
@@ -319,6 +295,7 @@ namespace ArbSh.Core
                             }
                             finally
                             {
+                                runPlan?.Dispose();
                                 outputCollection.CompleteAdding();
                                 CoreConsole.WriteLine($"DEBUG (Executor External): Finished '{currentCommand.CommandName}'.");
                             }
@@ -609,6 +586,82 @@ namespace ArbSh.Core
 
             } // End of loop for all statements
             CoreConsole.WriteLine($"DEBUG (Executor): All statements executed.");
+        }
+
+        /// <summary>
+        /// يشغّل خطوة عملية خارجية واحدة، ويبث مخرجاتها إلى خط الأنابيب، ويعيد رمز خروجها.
+        /// </summary>
+        private static async Task<int> RunExternalStepAsync(
+            EcoRunStep step,
+            BlockingCollection<PipelineObject> outputCollection,
+            IExternalProcessRunner externalProcessRunner,
+            CancellationToken cancellationToken)
+        {
+            ExternalProcessResult result;
+            if (externalProcessRunner is IStreamingExternalProcessRunner streamingRunner)
+            {
+                var processOutputSink = new PipelineProcessOutputSink(outputCollection);
+                try
+                {
+                    result = await streamingRunner
+                        .RunStreamingAsync(step.Request, processOutputSink, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    processOutputSink.Flush();
+                }
+            }
+            else
+            {
+                result = await externalProcessRunner
+                    .RunAsync(step.Request, cancellationToken)
+                    .ConfigureAwait(false);
+
+                AddProcessText(outputCollection, result.StandardOutput, isError: false);
+                AddProcessText(outputCollection, result.StandardError, isError: true);
+            }
+
+            if (result.TerminationReason is ExternalProcessTerminationReason.LaunchFailed)
+            {
+                string detail = string.IsNullOrWhiteSpace(result.FailureMessage)
+                    ? "لم يقدم النظام تفاصيل إضافية."
+                    : result.FailureMessage;
+                outputCollection.Add(new PipelineObject(
+                    $"تعذر تشغيل الأمر الخارجي '{step.DisplayName}': {detail}",
+                    isError: true));
+            }
+            else if (result.TerminationReason is ExternalProcessTerminationReason.Cancelled)
+            {
+                outputCollection.Add(new PipelineObject(
+                    $"أُلغي الأمر الخارجي '{step.DisplayName}'.",
+                    isError: true));
+
+                if (!string.IsNullOrWhiteSpace(result.FailureMessage))
+                {
+                    outputCollection.Add(new PipelineObject(
+                        $"تعذر إنهاء شجرة الأمر عبر مالكها؛ استُخدم الإنهاء الاحتياطي: {result.FailureMessage}",
+                        isError: true));
+                }
+            }
+            else if (result.TerminationReason is ExternalProcessTerminationReason.OwnershipFailed)
+            {
+                string detail = string.IsNullOrWhiteSpace(result.FailureMessage)
+                    ? "لم يقدم النظام تفاصيل إضافية."
+                    : result.FailureMessage;
+                outputCollection.Add(new PipelineObject(
+                    $"تعذر امتلاك شجرة الأمر الخارجي '{step.DisplayName}': {detail}",
+                    isError: true));
+            }
+
+            return result.TerminationReason switch
+            {
+                ExternalProcessTerminationReason.Exited => result.ExitCode ?? 1,
+                ExternalProcessTerminationReason.Cancelled => 130,
+                ExternalProcessTerminationReason.LaunchFailed => 127,
+                ExternalProcessTerminationReason.OwnershipFailed => 125,
+                _ => 1
+            };
         }
 
         private static string? ReadPipelineInput(

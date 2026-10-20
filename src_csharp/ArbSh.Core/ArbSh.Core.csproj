@@ -4,4 +4,8 @@
     <PackageReference Include="ICU4N" Version="60.1.0-alpha.440" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ArbSh.Test" />
+  </ItemGroup>
+
 </Project>
