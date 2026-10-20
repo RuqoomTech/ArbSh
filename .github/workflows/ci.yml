@@ -102,6 +102,9 @@ jobs:
           cmake --build Baa/build-eco --parallel 2
           cmake -S Nazm -B Nazm/build-eco @generator -DCMAKE_BUILD_TYPE=Release
           cmake --build Nazm/build-eco --parallel 2
+          # Baa assembles through Nazm's «نظم» launcher found on PATH.
+          "$env:GITHUB_WORKSPACE/Baa/build-eco" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "$env:GITHUB_WORKSPACE/Nazm/build-eco" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build Takween
         shell: pwsh
@@ -115,7 +118,7 @@ jobs:
         shell: pwsh
         run: |
           $sep = [IO.Path]::PathSeparator
-          $env:PATH = "$env:GITHUB_WORKSPACE/Baa/build-eco$sep$env:GITHUB_WORKSPACE/Nazm/build-eco$sep$env:GITHUB_WORKSPACE/Takween/dist/bin$sep$env:PATH"
+          $env:PATH = "$env:GITHUB_WORKSPACE/Takween/dist/bin$sep$env:PATH"
           $env:BAA_STDLIB = "$env:GITHUB_WORKSPACE/Baa/stdlib"
           $env:ARBSH_ECO_INTEGRATION = '1'
           dotnet test ArbSh/src_csharp/ArbSh.Test/ArbSh.Test.csproj --configuration Release `
