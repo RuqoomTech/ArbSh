@@ -164,7 +164,7 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 - Implemented scrollback offset virtualization with mouse-wheel and PageUp/PageDown navigation while keeping prompt pinned.
 - Added output-line selection and clipboard copy in logical-order text, alongside existing prompt-line clipboard editing.
 - Bundled terminal font assets (`CascadiaMono.ttf`, `arabtype.ttf`) and switched render font chain to packaged-first fallback.
-- Replaced the Arabic fallback with the bundled Cairo font (SIL OFL) for Arabic runs, keeping Cascadia Mono for Latin text, and aligned all lines on one baseline.
+- Replaced the Arabic fallback with the bundled Cairo font (SIL OFL) for Arabic runs, removed the non-redistributable `arabtype.ttf`, keeping Cascadia Mono for Latin text, and aligned all lines on one baseline.
 - Mirrored the Windows Terminal window for Arabic: custom title bar, right-to-left tabs with independent sessions and Windows Terminal shortcuts, the Campbell palette, a prompt that follows output, and right-aligned output lines.
 - Added full ANSI SGR parsing pipeline (16-color, 256-color, and truecolor) with span-based foreground/background styling.
 - Added ArbSh navy theme/palette abstractions and applied ANSI-aware styling in output rendering without mutating logical text.

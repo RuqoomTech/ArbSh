@@ -84,7 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that follows the last output line, and right alignment for every output line.
 - **Cairo for Arabic Text**: Bundled the Cairo font (SIL OFL 1.1). Arabic
   runs and the neutrals between Arabic words now render in Cairo, while Latin
-  text stays in Cascadia Mono. Lines share one baseline.
+  text stays in Cascadia Mono. Lines share one baseline. Removed the unused,
+  non-redistributable `arabtype.ttf`.
 - **.NET 10 LTS Baseline**: Migrated every project from .NET 9 to .NET 10 and
   pinned the supported SDK feature band in `global.json`.
 - **Central Build Metadata**: Moved the target framework, language version,
