@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using ArbSh.Core;
+using ArbSh.Core.Processes;
 using ArbSh.Terminal.Models;
 
 namespace ArbSh.Terminal.ViewModels;
@@ -13,6 +14,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly ShellSessionState _session;
     private readonly ObservableCollection<TerminalLine> _lines = [];
     private readonly ReadOnlyObservableCollection<TerminalLine> _readonlyLines;
+    private readonly InteractiveConsole _interactiveConsole = new();
+    private CancellationTokenSource? _activeExecution;
     private string _statusText = "جاهز";
 
     public MainWindowViewModel(string? initialWorkingDirectory = null)
@@ -70,6 +73,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public async Task SubmitInputAsync(string logicalInput, CancellationToken cancellationToken = default)
     {
+        // أثناء عمل برنامج تفاعلي يذهب السطر، ولو كان فارغًا، إلى إدخاله؛ وصداه يعود من طرفيته.
+        if (_interactiveConsole.TrySendLine(logicalInput))
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(logicalInput))
         {
             return;
@@ -88,9 +97,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var sink = new TerminalExecutionSink(this);
         var options = new ExecutionOptions
         {
-            EmitDebug = false
+            EmitDebug = false,
+            InteractiveConsole = _interactiveConsole
         };
 
+        using var execution = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _activeExecution = execution;
         try
         {
             StatusText = "جارٍ التنفيذ…";
@@ -100,8 +112,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     sink,
                     options,
                     _session,
-                    cancellationToken: cancellationToken),
-                cancellationToken);
+                    cancellationToken: execution.Token));
         }
         catch (Exception ex)
         {
@@ -109,10 +120,30 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
         finally
         {
+            if (ReferenceEquals(_activeExecution, execution))
+            {
+                _activeExecution = null;
+            }
+
             OnPropertyChanged(nameof(CurrentDirectory));
             OnPropertyChanged(nameof(Prompt));
             StatusText = "جاهز";
         }
+    }
+
+    /// <summary>
+    /// يلغي الأمر الجاري وينهي شجرة عملياته. يعيد false إذا لم يكن هناك أمر جارٍ.
+    /// </summary>
+    public bool CancelExecution()
+    {
+        CancellationTokenSource? execution = _activeExecution;
+        if (execution is null)
+        {
+            return false;
+        }
+
+        execution.Cancel();
+        return true;
     }
 
     internal void PostLine(string message, TerminalLineKind kind)

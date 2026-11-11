@@ -221,7 +221,12 @@ public sealed class TerminalSurface : Control
                     return;
 
                 case Key.C:
-                    await CopySelectionAsync();
+                    // بلا تحديد، Ctrl+C يلغي الأمر الجاري كما في الطرفيات المعتادة.
+                    if (_outputSelection.HasSelection || _inputBuffer.HasSelection || _viewModel?.CancelExecution() != true)
+                    {
+                        await CopySelectionAsync();
+                    }
+
                     e.Handled = true;
                     return;
 
@@ -582,11 +587,7 @@ public sealed class TerminalSurface : Control
         _outputSelection.Clear();
         InvalidateVisual();
 
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            return;
-        }
-
+        // النموذج يتجاهل السطر الفارغ إلا إذا كان برنامج تفاعلي ينتظره.
         await _viewModel.SubmitInputAsync(input);
     }
 

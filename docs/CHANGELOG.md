@@ -84,6 +84,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shell's. Thirteen planner and executor tests, plus a CI job that builds the
   pinned Baa, Nazm, and Takween and runs real files and projects on Windows and
   Linux.
+- **Interactive `تشغيل` on Windows (ConPTY)**: In ArbSh.Terminal the program
+  started by `تشغيل` now runs inside a Windows pseudo console, so it sees a
+  real terminal: prompts appear before input is typed, and lines typed while it
+  runs go to the program instead of the shell. The pseudo console is switched
+  to UTF-8 before the program starts, so Arabic input and output work on
+  systems whose console code page is not UTF-8. The process tree stays owned
+  by a kill-on-close Job Object, and `Ctrl + C` with no selection cancels the
+  running command. Output is line-oriented text: VT sequences are stripped and
+  stderr merges into stdout. The compile step, pipelines, redirection, the
+  Console host, and Linux keep the pipe path. Ten ungated tests cover the
+  runner, command-line quoting, the VT filter, and executor routing; two gated
+  tests drive a real Baa program through the executor and the terminal view
+  model.
 
 ### Changed
 - **Windows Terminal Layout, Mirrored for Arabic**: The Avalonia host now

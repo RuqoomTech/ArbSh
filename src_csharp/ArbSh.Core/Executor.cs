@@ -269,6 +269,15 @@ namespace ArbSh.Core
                                     steps = [new EcoRunStep(request, currentCommand.CommandName)];
                                 }
 
+                                // الطرفية التفاعلية للأمر الأمامي وحده: بلا أنابيب ولا إعادة توجيه ولا إدخال مسبق.
+                                InteractiveConsole? interactiveConsole =
+                                    statementCommands.Count == 1
+                                    && standardInput is null
+                                    && currentCommand.Redirections.Count == 0
+                                    && externalProcessRunner is IInteractiveExternalProcessRunner { SupportsInteractive: true }
+                                        ? options?.InteractiveConsole
+                                        : null;
+
                                 // تتوقف الخطوات المتتالية (ترجمة ثم تشغيل) عند أول رمز غير صفري.
                                 int exitCode = 0;
                                 foreach (EcoRunStep step in steps)
@@ -277,6 +286,7 @@ namespace ArbSh.Core
                                         step,
                                         outputCollection,
                                         externalProcessRunner,
+                                        step.Interactive ? interactiveConsole : null,
                                         cancellationToken).ConfigureAwait(false);
                                     if (exitCode != 0)
                                     {
@@ -595,10 +605,26 @@ namespace ArbSh.Core
             EcoRunStep step,
             BlockingCollection<PipelineObject> outputCollection,
             IExternalProcessRunner externalProcessRunner,
+            InteractiveConsole? interactiveConsole,
             CancellationToken cancellationToken)
         {
             ExternalProcessResult result;
-            if (externalProcessRunner is IStreamingExternalProcessRunner streamingRunner)
+            if (interactiveConsole is not null
+                && externalProcessRunner is IInteractiveExternalProcessRunner interactiveRunner)
+            {
+                var processOutputSink = new PipelineProcessOutputSink(outputCollection);
+                try
+                {
+                    result = await interactiveRunner
+                        .RunInteractiveAsync(step.Request, interactiveConsole, processOutputSink, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    processOutputSink.Flush();
+                }
+            }
+            else if (externalProcessRunner is IStreamingExternalProcessRunner streamingRunner)
             {
                 var processOutputSink = new PipelineProcessOutputSink(outputCollection);
                 try

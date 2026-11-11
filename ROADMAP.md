@@ -107,7 +107,8 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 - [x] **External Commands:** Execute non-interactive system commands (`git`, `dotnet`, `node`) through the shared core used by both hosts.
 - [x] **Process Pipeline:** Integrate line-oriented external stdin/stdout/stderr with the ArbSh object pipeline in both directions.
 - [x] **Live Output Streaming:** Stream non-interactive UTF-8 `stdout` and `stderr` incrementally through the structured runner and ArbSh pipeline while preserving complete captured results.
-- [ ] **Interactive Stream Handling:** Add incremental stdin, terminal resize, control signals, and background-job flow through PTY/ConPTY.
+- [x] **Interactive Foreground Run (Windows):** `تشغيل` runs the user's program inside a ConPTY pseudo console in ArbSh.Terminal with incremental line input, UTF-8 code page, Job Object ownership, and `Ctrl + C` cancellation.
+- [ ] **Interactive Stream Handling:** Add the Linux PTY, interactive plain external commands, a VT screen grid for full-screen programs, terminal resize, control signals, and background-job flow.
 - [x] **Arabic Path Support:** Preserve Arabic working directories, executable/argument paths, spaces, and empty arguments when launching external tools.
 - [x] **Structured Process Core:** Added reusable immutable request/result contracts, UTF-8 stream capture, exit/failure classification, and cancellation.
 - [x] **Structured Launch:** Build non-interactive external processes from argv/cwd/environment instead of concatenated shell command strings.

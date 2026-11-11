@@ -44,6 +44,12 @@ public sealed class ExecutionOptions
     /// Gets or sets a value indicating whether warning messages should be emitted.
     /// </summary>
     public bool EmitWarnings { get; init; } = true;
+
+    /// <summary>
+    /// طرفية المضيف التفاعلية. عند توفرها تعمل البرامج الأمامية التي يشغّلها «تشغيل»
+    /// داخل طرفية زائفة وتقرأ ما يكتبه المستخدم أثناء عملها.
+    /// </summary>
+    public Processes.InteractiveConsole? InteractiveConsole { get; init; }
 }
 
 /// <summary>

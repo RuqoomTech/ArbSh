@@ -122,4 +122,4 @@ jobs:
           $env:BAA_STDLIB = "$env:GITHUB_WORKSPACE/Baa/stdlib"
           $env:ARBSH_ECO_INTEGRATION = '1'
           dotnet test ArbSh/src_csharp/ArbSh.Test/ArbSh.Test.csproj --configuration Release `
-            --filter "FullyQualifiedName~EcoRunTests" --logger "console;verbosity=normal"
+            --filter "FullyQualifiedName~EcoRunTests|FullyQualifiedName~TerminalInteractiveRunTests" --logger "console;verbosity=normal"

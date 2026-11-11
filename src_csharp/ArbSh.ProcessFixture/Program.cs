@@ -13,6 +13,12 @@ internal static class Program
 {
     public static async Task<int> Main(string[] arguments)
     {
+        // قبل ضبط الترميز عمدًا: يثبت أن الطرفية الزائفة نفسها تسلّم UTF-8 للبرامج التي لا تضبطه.
+        if (arguments is ["console-echo", ..])
+        {
+            return ConsoleEcho(arguments[1..]);
+        }
+
         Console.InputEncoding = Encoding.UTF8;
         Console.OutputEncoding = Encoding.UTF8;
 
@@ -35,6 +41,19 @@ internal static class Program
             "stdin-length" => await WriteStandardInputLengthAsync().ConfigureAwait(false),
             _ => UnknownCommand(arguments[0])
         };
+    }
+
+    private static int ConsoleEcho(string[] arguments)
+    {
+        // موجه بلا نهاية سطر ثم قراءة: لا يظهر عبر الأنابيب، ويظهر فورًا عبر طرفية.
+        Console.Out.Write("اسمك؟ ");
+        string? line = Console.In.ReadLine();
+        Console.Out.WriteLine($"مرحبا {line}");
+        Console.Out.WriteLine($"tty={!Console.IsInputRedirected && !Console.IsOutputRedirected}");
+        Console.Out.WriteLine($"cwd={arguments.Length > 0 && string.Equals(Environment.CurrentDirectory, arguments[0], StringComparison.OrdinalIgnoreCase)}");
+        Console.Out.WriteLine($"env={Environment.GetEnvironmentVariable("ARBSH_PHASE2_VALUE")}");
+        Console.Out.WriteLine($"arg={(arguments.Length > 1 ? arguments[1] : null)}");
+        return 5;
     }
 
     private static async Task<int> InspectAsync(string[] arguments)

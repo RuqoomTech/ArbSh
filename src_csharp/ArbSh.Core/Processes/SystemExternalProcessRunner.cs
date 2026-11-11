@@ -7,7 +7,7 @@ namespace ArbSh.Core.Processes;
 /// <summary>
 /// تنفيذ نظامي للعملية المنظمة باستخدام <see cref="ProcessStartInfo.ArgumentList"/> مباشرة.
 /// </summary>
-public sealed class SystemExternalProcessRunner : IStreamingExternalProcessRunner
+public sealed partial class SystemExternalProcessRunner : IStreamingExternalProcessRunner
 {
     private static readonly Encoding Utf8WithoutBom = new UTF8Encoding(
         encoderShouldEmitUTF8Identifier: false,

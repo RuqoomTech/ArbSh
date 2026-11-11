@@ -345,6 +345,125 @@ public sealed class EcoRunTests
         }
     }
 
+    [Fact]
+    public void ExecuteInput_WithInteractiveConsole_RunsOnlyTheProgramStepInATerminal()
+    {
+        string root = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(root, "برنامج.baa"), string.Empty);
+        var runner = new InteractiveRecordingRunner();
+        var sink = new CaptureSink();
+        var session = new ShellSessionState(root);
+        var options = new ExecutionOptions { InteractiveConsole = new InteractiveConsole() };
+
+        try
+        {
+            ShellEngine.ExecuteInput("تشغيل برنامج.baa وسيط", sink, options, session, runner);
+
+            // الترجمة تبقى على الأنابيب لتبقى تشخيصاتها على قناة الأخطاء.
+            ExternalProcessRequest compile = Assert.Single(runner.Piped);
+            Assert.Equal(EcoRunPlanner.BaaExecutable, compile.Executable);
+            ExternalProcessRequest run = Assert.Single(runner.Interactive);
+            Assert.Equal(["وسيط"], run.Arguments);
+            Assert.Contains("مرحبا من الطرفية", sink.Outputs);
+            Assert.Equal(7, session.LastExitCode);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ExecuteInput_RedirectedRun_StaysOnPipesDespiteInteractiveConsole()
+    {
+        string root = CreateTempDirectory();
+        File.WriteAllText(Path.Combine(root, "برنامج.baa"), string.Empty);
+        var runner = new InteractiveRecordingRunner();
+        var session = new ShellSessionState(root);
+        var options = new ExecutionOptions { InteractiveConsole = new InteractiveConsole() };
+
+        try
+        {
+            ShellEngine.ExecuteInput("تشغيل برنامج.baa > ناتج.txt", new CaptureSink(), options, session, runner);
+
+            Assert.Empty(runner.Interactive);
+            Assert.Equal(2, runner.Piped.Count);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Integration_InteractiveBaaProgramReadsWhatTheUserTypes()
+    {
+        // يحتاج baa على PATH وطرفية Windows الزائفة؛ تفعّله مهمة CI البيئية.
+        if (Environment.GetEnvironmentVariable(IntegrationVariable) != "1" || !OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        string root = CreateTempDirectory();
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(root, "سؤال.baa"),
+                "صحيح الرئيسية() {\n    صحيح س = ٠.\n    اطبع \"أدخل رقماً\".\n    اقرأ س.\n    اطبع س + ١.\n    إرجع ٠.\n}\n");
+            var console = new InteractiveConsole();
+            var sink = new CaptureSink();
+            // لا يُكتب الرقم إلا بعد ظهور الموجه العربي من البرنامج الحي.
+            sink.OnOutput = line =>
+            {
+                if (line.Contains("أدخل رقماً", StringComparison.Ordinal))
+                {
+                    console.TrySendLine("41");
+                }
+            };
+            var session = new ShellSessionState(root);
+            var options = new ExecutionOptions { InteractiveConsole = console };
+
+            ShellEngine.ExecuteInput("تشغيل سؤال.baa", sink, options, session);
+
+            Assert.True(
+                sink.Outputs.Contains("42"),
+                string.Join(Environment.NewLine, sink.Outputs.Concat(sink.Errors)));
+            Assert.Equal(0, session.LastExitCode);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class InteractiveRecordingRunner : IInteractiveExternalProcessRunner
+    {
+        public List<ExternalProcessRequest> Piped { get; } = [];
+
+        public List<ExternalProcessRequest> Interactive { get; } = [];
+
+        public bool SupportsInteractive => true;
+
+        public Task<ExternalProcessResult> RunAsync(ExternalProcessRequest request, CancellationToken cancellationToken)
+        {
+            Piped.Add(request);
+            return Task.FromResult(Exited(0));
+        }
+
+        public async Task<ExternalProcessResult> RunInteractiveAsync(
+            ExternalProcessRequest request,
+            InteractiveConsole console,
+            IExternalProcessOutputSink outputSink,
+            CancellationToken cancellationToken)
+        {
+            Interactive.Add(request);
+            await outputSink.WriteAsync(
+                new ExternalProcessOutputChunk(ExternalProcessStream.StandardOutput, "مرحبا من الطرفية\r\n"),
+                cancellationToken);
+            return Exited(7);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         string root = Path.Combine(Path.GetTempPath(), $"أربش تشغيل {Guid.NewGuid():N}");
@@ -382,12 +501,16 @@ public sealed class EcoRunTests
 
         public List<string> Errors { get; } = [];
 
+        public Action<string>? OnOutput { get; set; }
+
         public void WriteOutput(string message)
         {
             lock (_sync)
             {
                 Outputs.Add(message);
             }
+
+            OnOutput?.Invoke(message);
         }
 
         public void WriteError(string message)

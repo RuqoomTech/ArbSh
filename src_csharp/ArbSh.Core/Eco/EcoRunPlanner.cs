@@ -4,8 +4,9 @@ namespace ArbSh.Core.Eco;
 
 /// <summary>
 /// خطوة عملية واحدة في خطة <c>تشغيل</c>، مع الاسم الذي يظهر في رسائل الفشل.
+/// <paramref name="Interactive"/> يعلّم الخطوة التي تشغّل برنامج المستخدم، فتستحق طرفية تفاعلية.
 /// </summary>
-public sealed record EcoRunStep(ExternalProcessRequest Request, string DisplayName);
+public sealed record EcoRunStep(ExternalProcessRequest Request, string DisplayName, bool Interactive = false);
 
 /// <summary>
 /// خطة <c>تشغيل</c>: خطوات تُنفذ بالترتيب وتتوقف عند أول رمز خروج غير صفري،
@@ -179,7 +180,7 @@ public static class EcoRunPlanner
             standardInputText: standardInput);
 
         return EcoRunPlan.Of(
-            [new EcoRunStep(compile, BaaExecutable), new EcoRunStep(run, Path.GetFileName(sourcePath))],
+            [new EcoRunStep(compile, BaaExecutable), new EcoRunStep(run, Path.GetFileName(sourcePath), Interactive: true)],
             temporaryDirectory);
     }
 
@@ -195,6 +196,6 @@ public static class EcoRunPlanner
             standardInputMode: standardInput is null ? ExternalProcessInputMode.Closed : ExternalProcessInputMode.Text,
             standardInputText: standardInput);
 
-        return EcoRunPlan.Of([new EcoRunStep(run, TakweenExecutable)]);
+        return EcoRunPlan.Of([new EcoRunStep(run, TakweenExecutable, Interactive: true)]);
     }
 }

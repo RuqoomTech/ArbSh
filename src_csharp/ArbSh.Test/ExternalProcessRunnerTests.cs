@@ -401,6 +401,132 @@ public sealed class ExternalProcessRunnerTests
         }
     }
 
+    [Fact]
+    public async Task RunInteractiveAsync_ShowsPromptBeforeInputAndPreservesArabicExitCodeAndEnvironment()
+    {
+        // طرفية Linux الزائفة لم تُنفذ بعد.
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = FixtureCopy.Create();
+        var runner = new SystemExternalProcessRunner();
+        var console = new InteractiveConsole();
+        // لا يُرسل الاسم إلا بعد ظهور الموجه غير المنتهي بسطر؛ عبر الأنابيب يعلق هذا إلى الأبد.
+        var sink = new PromptAnsweringSink("اسمك؟", () => console.TrySendLine("عمر"));
+        const string quotedArgument = "وسيط \"مقتبس\" بمسافات";
+        var request = new ExternalProcessRequest(
+            ResolveDotNetHost(),
+            [fixture.AssemblyPath, "console-echo", fixture.RootDirectory, quotedArgument],
+            fixture.RootDirectory,
+            new Dictionary<string, string?>
+            {
+                ["ARBSH_PHASE2_VALUE"] = "قيمة عربية"
+            });
+
+        Assert.True(runner.SupportsInteractive);
+        ExternalProcessResult result = await runner
+            .RunInteractiveAsync(request, console, sink)
+            .WaitAsync(TimeSpan.FromSeconds(60));
+
+        Assert.Equal(ExternalProcessTerminationReason.Exited, result.TerminationReason);
+        Assert.Equal(5, result.ExitCode);
+        Assert.Equal(ExternalProcessTreeOwnershipMode.WindowsJobObject, result.TreeOwnershipMode);
+        Assert.Contains("مرحبا عمر", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("tty=True", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("cwd=True", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("env=قيمة عربية", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains($"arg={quotedArgument}", result.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain((char)27, result.StandardOutput);
+        Assert.False(console.IsAttached);
+    }
+
+    [Fact]
+    public async Task RunInteractiveAsync_CancellationEndsAProgramWaitingForInput()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = FixtureCopy.Create();
+        using var cancellation = new CancellationTokenSource();
+        var runner = new SystemExternalProcessRunner();
+        var console = new InteractiveConsole();
+        var sink = new PromptAnsweringSink("اسمك؟", cancellation.Cancel);
+        var request = new ExternalProcessRequest(
+            ResolveDotNetHost(),
+            [fixture.AssemblyPath, "console-echo"],
+            fixture.RootDirectory);
+
+        ExternalProcessResult result = await runner
+            .RunInteractiveAsync(request, console, sink, cancellation.Token)
+            .WaitAsync(TimeSpan.FromSeconds(60));
+
+        Assert.Equal(ExternalProcessTerminationReason.Cancelled, result.TerminationReason);
+        Assert.DoesNotContain("مرحبا", result.StandardOutput, StringComparison.Ordinal);
+        Assert.False(console.IsAttached);
+    }
+
+    [Fact]
+    public async Task RunInteractiveAsync_MissingProgramIsALaunchFailure()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var runner = new SystemExternalProcessRunner();
+        var request = new ExternalProcessRequest($"برنامج-مفقود-{Guid.NewGuid():N}");
+
+        ExternalProcessResult result = await runner.RunInteractiveAsync(
+            request,
+            new InteractiveConsole(),
+            new PromptAnsweringSink("لا شيء", () => { }));
+
+        Assert.Equal(ExternalProcessTerminationReason.LaunchFailed, result.TerminationReason);
+        Assert.False(string.IsNullOrWhiteSpace(result.FailureMessage));
+    }
+
+    [Fact]
+    public void BuildWindowsCommandLine_QuotesArgumentsForCommandLineToArgv()
+    {
+        string commandLine = SystemExternalProcessRunner.BuildWindowsCommandLine(
+            "C:\\مجلد عربي\\برنامج.exe",
+            ["plain", string.Empty, "with space", "q\"uote", "trail\\", "sp ace\\", "a\\\"b"]);
+
+        Assert.Equal(
+            "\"C:\\مجلد عربي\\برنامج.exe\" plain \"\" \"with space\" \"q\\\"uote\" trail\\ \"sp ace\\\\\" \"a\\\\\\\"b\"",
+            commandLine);
+    }
+
+    private sealed class PromptAnsweringSink(string prompt, Action answer) : IExternalProcessOutputSink
+    {
+        private readonly System.Text.StringBuilder _text = new();
+        private bool _answered;
+
+        public ValueTask WriteAsync(
+            ExternalProcessOutputChunk chunk,
+            CancellationToken cancellationToken = default)
+        {
+            bool answerNow;
+            lock (_text)
+            {
+                _text.Append(chunk.Text);
+                answerNow = !_answered && _text.ToString().Contains(prompt, StringComparison.Ordinal);
+                _answered |= answerNow;
+            }
+
+            if (answerNow)
+            {
+                answer();
+            }
+
+            return ValueTask.CompletedTask;
+        }
+    }
+
     private static string ResolveDotNetHost()
     {
         string? configuredHost = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");

@@ -82,7 +82,7 @@ PTY/ConPTY في الخطوة التالية.
 - Mouse wheel scrolls output history.
 - `PageUp` and `PageDown` navigate scrollback by viewport-sized steps.
 - Click/drag in output history selects full lines across visible rows.
-- `Ctrl + C` copies selected output lines first; if no output selection exists, it copies selected prompt input.
+- `Ctrl + C` copies selected output lines first; if no output selection exists, it copies selected prompt input. With nothing selected it cancels the running command.
 - Copied output is emitted in logical line order so external editors receive stable text.
 
 ### Avalonia Typography & Theme Notes (Phase 5 Closure)
@@ -282,6 +282,13 @@ README.md
 - إذا تعذر تحديد ما يُشغَّل تظهر رسالة عربية ورمز الخروج `2`.
 - تُبث المخرجات والتشخيصات سطرًا بسطر، ويمر إدخال خط الأنابيب إلى البرنامج.
 - يجب أن يكون `baa` و`تكوين` على PATH.
+- **برامج تفاعلية (طرفية أربش على Windows):** يعمل البرنامج داخل طرفية زائفة ConPTY،
+  فيظهر موجهه قبل أن تكتب. اكتب الجواب في سطر الإدخال واضغط Enter فيصل إلى
+  البرنامج لا إلى الصدفة، ويظهر صداه في السجل. `Ctrl + C` بلا تحديد يلغي الأمر
+  الجاري وينهي شجرة عملياته. الخرج نص سطري: تُحذف ألوان ANSI وتندمج قناة
+  الأخطاء مع الخرج، ولا تُدعم بعد البرامج التي ترسم الشاشة كاملة. يبقى
+  التشغيل عبر الأنابيب كما كان عند إعادة التوجيه أو خطوط الأنابيب، وفي مضيف
+  Console، وعلى Linux.
 
 **Examples:**
 ```powershell
