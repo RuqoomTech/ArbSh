@@ -189,15 +189,20 @@ A PowerShell script (`create-release.ps1`) automates release creation:
 
 This creates a self-contained release build and packages it into `releases/` directory.
 
-3. **Build release + installer package (Windows context menu):**
+3. **Build the standalone installers:**
    ```powershell
-   .\create-release.ps1 -Version "0.8.1-alpha" -CreateInstaller
+   .\scripts\build_installer.ps1          # Windows: dist/installer/arbsh-setup-<version>-x64.exe
+   ```
+   ```bash
+   scripts/build_linux_packages.sh        # Linux: dist/packages/arbsh_<version>_amd64.deb and .tar.gz
    ```
 
-This also creates `ArbSh-v<version>-<rid>-installer.zip` with:
-- `Install-ArbSh.ps1`
-- `Uninstall-ArbSh.ps1`
-- `App/` published `ArbSh.Terminal`
+The Windows installer (Inno Setup, per-user or all users) puts only `arbsh.exe` in
+`bin` on PATH, installs the terminal under `terminal`, and adds Start menu entries
+and an optional Explorer "افتح أربش هنا" entry. The `.deb` installs to `/opt/arbsh`
+with `/usr/bin/arbsh`. CI installs an older version, upgrades, repairs, and
+uninstalls both on every push (`scripts/test_installer.ps1`,
+`scripts/test_linux_packages.sh`).
 
 ## 📖 Documentation
 

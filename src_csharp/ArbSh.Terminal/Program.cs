@@ -52,6 +52,12 @@ internal static class Program
             return null;
         }
 
+        // «~» مجلد المستخدم الذي يشغّل الطرفية؛ تستخدمه اختصارات المثبت لكل المستخدمين.
+        if (candidate.Trim() == "~")
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+
         try
         {
             string fullPath = System.IO.Path.GetFullPath(candidate.Trim());

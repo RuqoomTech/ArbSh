@@ -171,3 +171,6 @@ appsettings.Development.json
 file.txt
 ظ
 temp_input.txt
+
+# Installer payload and output
+dist/

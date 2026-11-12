@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Standalone Installers**: `scripts/build_installer.ps1` builds an Inno Setup
+  installer (`arbsh-setup-<version>-x64.exe`, per-user or all users) using the
+  shared Eco helpers: `arbsh.exe` alone in `bin` on PATH with ownership
+  tracking, the terminal under `terminal`, Start menu entries, an optional
+  Explorer "افتح أربش هنا" entry, and a post-install health probe.
+  `scripts/build_linux_packages.sh` builds `arbsh_<version>_amd64.deb`
+  (`/opt/arbsh`, `/usr/bin/arbsh`, desktop entry) and a portable `.tar.gz`.
+  CI installs an older version, upgrades, repairs deleted files, and
+  uninstalls on both platforms, failing on any leftover file, key, or PATH
+  entry.
+- **Terminal Home Folder**: `ArbSh.Terminal --working-dir ~` starts in the
+  current user's home folder; installer shortcuts use it.
 - **Frozen Host Surface (`arbsh-host-v1`)**: The console host is now the
   `arbsh` program with `--version`, `--help`, `--command <line>`, and
   `--events=jsonl`. Command mode writes logical UTF-8 without a BOM, skips the
@@ -113,6 +125,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ownership differ. The interactive tests run on Ubuntu as well as Windows.
 
 ### Changed
+- **Installer Scripts Replaced**: `installer/Install-ArbSh.ps1` and
+  `installer/Uninstall-ArbSh.ps1` are removed; `create-release.ps1
+  -CreateInstaller` now builds the Inno Setup installer.
 - **Built-in Exit Codes**: An Arabic built-in that reports an error (for
   example `انتقل` to a missing folder) now sets the exit code to 1 instead
   of 0. Unknown console-host options now fail with code 2 instead of being

@@ -8,7 +8,8 @@
 - `src_csharp/ArbSh.ProcessFixture`: helper executable used only by process-contract tests.
 - `src_csharp/ArbSh.Test`: xUnit tests.
 - `docs/`: roadmap, usage, architecture notes, changelog.
-- `installer/`: Windows install/uninstall scripts (Explorer context-menu support).
+- `installer/`: shared Eco Inno Setup helpers and wizard artwork used by `setup.iss`.
+- `scripts/`: standalone installer build and lifecycle-test scripts (Windows `.exe`, Linux `.deb`/`.tar.gz`).
 - `create-release.ps1`: release/installer packaging automation.
 
 ## Build, Test, and Development Commands
@@ -23,7 +24,9 @@
 - `.\create-release.ps1 -Version "0.8.1-alpha"`  
   Produces release zip.
 - `.\create-release.ps1 -Version "0.8.1-alpha" -CreateInstaller`  
-  Produces release + installer package zip.
+  Produces release zip + the standalone Inno Setup installer.
+- `.\scripts\build_installer.ps1` / `scripts/build_linux_packages.sh`  
+  Build the Windows installer / Linux packages into `dist/`.
 
 ## Coding Style & Naming Conventions
 - Follow `.editorconfig`: 4 spaces, CRLF, UTF-8.

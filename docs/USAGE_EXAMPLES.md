@@ -760,16 +760,22 @@ ArbSh> اطبع $(الأوامر)
 ArbSh> مساعدة
 ```
 
-**Build Release + Installer Package (Windows):**
+**Build and install the standalone packages:**
 ```powershell
-# Console release zip
-.\create-release.ps1 -Version "0.8.1-alpha"
+# Windows installer: dist/installer/arbsh-setup-<version>-x64.exe
+.\scripts\build_installer.ps1
 
-# Console + installer package zip
-.\create-release.ps1 -Version "0.8.1-alpha" -CreateInstaller
-
-# Install from installer package folder
-.\Install-ArbSh.ps1
+# Silent per-user install, then a new terminal sees arbsh on PATH
+.\dist\installer\arbsh-setup-0.8.1-alpha-x64.exe /VERYSILENT /CURRENTUSER
 ```
+```bash
+# Linux: .deb and .tar.gz in dist/packages/
+scripts/build_linux_packages.sh
+sudo apt-get install ./dist/packages/arbsh_0.8.1~alpha-1_amd64.deb
+```
+
+يضع المثبت `arbsh` وحده في مجلد على PATH، والطرفية في مجلد مستقل، ويضيف
+اختصارات قائمة ابدأ وخيار «افتح أربش هنا» في المستكشف. الترقية والإصلاح يعيدان
+تشغيل المثبت نفسه، والإزالة من «التطبيقات» تحذف الملفات ومدخل PATH والقيود.
 
 This comprehensive feature set makes ArbSh a powerful Arabic-first shell environment for Arabic developers, with full Unicode compliance and modern shell capabilities.

@@ -7,14 +7,10 @@
   This script can:
   1) Update docs/CHANGELOG.md (optional)
   2) Publish ArbSh.Console and create a release zip
-  3) Optionally publish ArbSh.Terminal and create an installer package zip
-     containing:
-       - App/ (published terminal files)
-       - Install-ArbSh.ps1
-       - Uninstall-ArbSh.ps1
-
-  The installer scripts register Windows Explorer context menu entries:
-    "Open in ArbSh" for folder/background/drive, passing --working-dir.
+  3) Optionally build the standalone Inno Setup installer through
+     scripts/build_installer.ps1 (dist/installer/arbsh-setup-<version>-x64.exe).
+     It installs the arbsh command on PATH, the terminal, Start menu entries,
+     and an optional Explorer "open here" entry that passes --working-dir.
 
 .PARAMETER Version
   Release version string (e.g. 0.8.1-alpha).
@@ -26,7 +22,7 @@
   Target framework (default: net10.0).
 
 .PARAMETER CreateInstaller
-  When set, also builds the terminal installer package zip.
+  When set, also builds the standalone installer.
 
 .PARAMETER SkipChangelogUpdate
   When set, skips changelog modification.
@@ -50,18 +46,13 @@ $ReleasesDir = Join-Path $ProjectRoot "releases"
 $ChangelogPath = Join-Path $ProjectRoot "docs\CHANGELOG.md"
 
 $ConsoleProject = Join-Path $ProjectRoot "src_csharp\ArbSh.Console\ArbSh.Console.csproj"
-$TerminalProject = Join-Path $ProjectRoot "src_csharp\ArbSh.Terminal\ArbSh.Terminal.csproj"
 
 $ConsolePublishDir = Join-Path $ProjectRoot "src_csharp\ArbSh.Console\bin\Release\$TargetFramework\$RuntimeID\publish"
-$TerminalPublishDir = Join-Path $ProjectRoot "src_csharp\ArbSh.Terminal\bin\Release\$TargetFramework\$RuntimeID\publish"
 
 $ConsoleZipName = "ArbSh-v$Version-$RuntimeID.zip"
 $ConsoleZipPath = Join-Path $ReleasesDir $ConsoleZipName
 
-$InstallerPackageName = "ArbSh-v$Version-$RuntimeID-installer.zip"
-$InstallerPackagePath = Join-Path $ReleasesDir $InstallerPackageName
-$InstallerStageDir = Join-Path $ReleasesDir "ArbSh-v$Version-$RuntimeID-installer"
-$InstallerTemplateDir = Join-Path $ProjectRoot "installer"
+$InstallerPackagePath = Join-Path $ProjectRoot "dist\installer\arbsh-setup-$Version-x64.exe"
 
 function Write-Step {
     param([string]$Message)
@@ -149,64 +140,8 @@ function Build-ConsoleReleaseZip {
 }
 
 function Build-InstallerPackage {
-    Write-Step "Publishing ArbSh.Terminal"
-    Invoke-DotNetPublish -ProjectPath $TerminalProject
-
-    if (-not (Test-Path -Path $TerminalPublishDir -PathType Container)) {
-        throw "Terminal publish directory not found: $TerminalPublishDir"
-    }
-
-    if (-not (Test-Path -Path $InstallerTemplateDir -PathType Container)) {
-        throw "Installer template directory not found: $InstallerTemplateDir"
-    }
-
-    $installScript = Join-Path $InstallerTemplateDir "Install-ArbSh.ps1"
-    $uninstallScript = Join-Path $InstallerTemplateDir "Uninstall-ArbSh.ps1"
-    if (-not (Test-Path -Path $installScript -PathType Leaf)) {
-        throw "Install script missing: $installScript"
-    }
-    if (-not (Test-Path -Path $uninstallScript -PathType Leaf)) {
-        throw "Uninstall script missing: $uninstallScript"
-    }
-
-    if (Test-Path -Path $InstallerStageDir -PathType Container) {
-        Remove-Item -Path $InstallerStageDir -Recurse -Force
-    }
-
-    $stageAppDir = Join-Path $InstallerStageDir "App"
-    Ensure-Directory -Path $stageAppDir
-
-    Write-Step "Staging installer package files"
-    Copy-Item -Path (Join-Path $TerminalPublishDir '*') -Destination $stageAppDir -Recurse -Force
-    Copy-Item -Path $installScript -Destination (Join-Path $InstallerStageDir "Install-ArbSh.ps1") -Force
-    Copy-Item -Path $uninstallScript -Destination (Join-Path $InstallerStageDir "Uninstall-ArbSh.ps1") -Force
-
-    $readmePath = Join-Path $InstallerStageDir "README.txt"
-    $readme = @"
-ArbSh Installer Package
-Version: $Version
-Runtime: $RuntimeID
-
-How to install:
-1) Open PowerShell
-2) Run: .\Install-ArbSh.ps1
-
-This installs ArbSh.Terminal for the current user and adds:
- - Open in ArbSh (folder background)
- - Open in ArbSh (folder)
- - Open in ArbSh (drive)
-
-It passes the selected location through:
-  --working-dir
-"@
-    Set-Content -Path $readmePath -Value $readme -Encoding UTF8
-
-    if (Test-Path -Path $InstallerPackagePath -PathType Leaf) {
-        Remove-Item -Path $InstallerPackagePath -Force
-    }
-
-    Write-Step "Creating installer package zip: $InstallerPackagePath"
-    Compress-Archive -Path (Join-Path $InstallerStageDir '*') -DestinationPath $InstallerPackagePath -Force
+    Write-Step "Building the standalone Inno Setup installer"
+    & (Join-Path $ProjectRoot "scripts/build_installer.ps1") -Version $Version
 }
 
 Write-Step "Starting release process for version $Version"

@@ -103,7 +103,7 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 
 #### 6.2 General Process Management (Pseudo-TTY)
 - [x] **Filesystem Built-ins:** Added Arabic file/directory commands (`انتقل`, `المسار`, `اعرض`) with session-scoped working directory behavior.
-- [x] **Windows Installer Context Menu:** Added installer packaging scripts that register `Open in ArbSh` and pass `--working-dir` from Explorer.
+- [x] **Windows Installer Context Menu:** The installer registers an optional Explorer `افتح أربش هنا` entry that passes `--working-dir`.
 - [x] **External Commands:** Execute non-interactive system commands (`git`, `dotnet`, `node`) through the shared core used by both hosts.
 - [x] **Process Pipeline:** Integrate line-oriented external stdin/stdout/stderr with the ArbSh object pipeline in both directions.
 - [x] **Live Output Streaming:** Stream non-interactive UTF-8 `stdout` and `stderr` incrementally through the structured runner and ArbSh pipeline while preserving complete captured results.
@@ -143,7 +143,7 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 - [ ] **Baa Package Manager (BPM) Interface:** Integrate commands to download and install Baa libraries from a central repository.
 - [ ] **IDE Integration:** Visual Studio Code extension compatibility for ArbSh scripts.
 - [ ] **Documentation Portal:** Generate an Arabic website documenting the shell features.
-- [ ] **Standalone Installer Contract:** Pass install, upgrade, repair, health-check, and uninstall gates independently.
+- [x] **Standalone Installer Contract:** Pass install, upgrade, repair, health-check, and uninstall gates independently: an Inno Setup installer on Windows and `.deb`/`.tar.gz` packages on Linux, each driven through install of an older version, upgrade, repair, and clean removal in CI.
 - [ ] **Developer Kit Admission:** Join Baa-Developer-Kit only after the standalone installer and Windows/Linux host gates pass.
 - [ ] **Shared Arabic Corpus:** Publish `eco-arabic-text-corpus-v1` fixtures for Qalam, Pyramid-Engine, and a bounded future PyramidOS subset.
 
