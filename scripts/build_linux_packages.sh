@@ -71,7 +71,7 @@ Version: $deb_version
 Architecture: amd64
 Maintainer: Omar Aglan
 Installed-Size: $installed_size
-Depends: libc6, libgcc-s1, libstdc++6, zlib1g, libicu74 | libicu72 | libicu70 | libicu67, libfontconfig1, libx11-6, libice6, libsm6
+Depends: libc6, libgcc-s1, libstdc++6, zlib1g, libicu78 | libicu77 | libicu76 | libicu75 | libicu74 | libicu72 | libicu70 | libicu67, libfontconfig1, libx11-6, libice6, libsm6
 Section: shells
 Priority: optional
 Homepage: https://github.com/RuqoomTech/ArbSh

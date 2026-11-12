@@ -213,3 +213,5 @@ if ((& $entries $userPathAfter) -cne (& $entries $userPathBefore)) {
 }
 
 Write-Output "ArbSh installer lifecycle passed: install $previousVersion, upgrade to $version, repair, uninstall."
+# الفشل يُعلن بـthrow؛ لا يتسرب رمز آخر أمر أصلي (127 المقصود أعلاه) إلى المستدعي.
+exit 0
