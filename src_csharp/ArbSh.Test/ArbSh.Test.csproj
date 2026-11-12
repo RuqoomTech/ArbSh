@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ArbSh.Console\ArbSh.Console.csproj" />
     <ProjectReference Include="..\ArbSh.Core\ArbSh.Core.csproj" />
     <ProjectReference Include="..\ArbSh.ProcessFixture\ArbSh.ProcessFixture.csproj" />
     <ProjectReference Include="..\ArbSh.Terminal\ArbSh.Terminal.csproj" />

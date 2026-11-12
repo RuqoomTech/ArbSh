@@ -143,7 +143,7 @@ public sealed partial class SystemExternalProcessRunner : IStreamingExternalProc
                 cancelled = true;
                 try
                 {
-                    treeOwner.Terminate(exitCode: 130);
+                    treeOwner.Terminate(exitCode: HostExitCodes.Cancelled);
                 }
                 catch (Exception exception) when (IsOwnershipException(exception))
                 {

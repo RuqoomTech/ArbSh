@@ -1,6 +1,8 @@
-﻿using System;
-using System.Linq;
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using ArbSh.Core;
 using ArbSh.Console.I18n;
 
@@ -10,21 +12,33 @@ namespace ArbSh.Console
     {
         private const string ExitCommand = "اخرج";
 
-        private static void Main(string[] args)
+        private static int Main(string[] args)
         {
+            if (!HostCommandLine.TryParse(args, out HostCommandLine commandLine, out string? parseError))
+            {
+                using var usageError = OpenStandardWriter(System.Console.OpenStandardError());
+                usageError.Write($"{parseError}\n{HostCommandLine.Usage}");
+                return HostExitCodes.Usage;
+            }
+
+            if (commandLine.Mode != HostMode.Interactive)
+            {
+                return RunNonInteractive(commandLine);
+            }
+
             if (ConsoleEnvironment.TryLaunchInBetterTerminal(args))
             {
-                return;
+                return HostExitCodes.Success;
             }
 
             System.Console.InputEncoding = Encoding.UTF8;
             System.Console.OutputEncoding = Encoding.UTF8;
 
             var sink = new ConsoleExecutionSink();
-            var session = new ShellSessionState(ResolveInitialWorkingDirectory(args, sink));
+            var session = new ShellSessionState(ResolveInitialWorkingDirectory(commandLine.WorkingDirectory, sink));
             var executionOptions = new ExecutionOptions
             {
-                EmitDebug = args.Contains("--debug-console", StringComparer.OrdinalIgnoreCase)
+                EmitDebug = commandLine.DebugConsole
             };
 
             ConsoleRTLDisplay.DisplayRTLText("مرحباً بكم في أربش (النموذج الأولي)!", rightAlign: true);
@@ -108,15 +122,34 @@ namespace ArbSh.Console
                     System.Console.WriteLine("تم إغلاق أربش.");
                 }
             }
+
+            return session.LastExitCode;
         }
 
-        private static string? ResolveInitialWorkingDirectory(string[] args, ConsoleExecutionSink sink)
+        private static int RunNonInteractive(HostCommandLine commandLine)
         {
-            if (!TryGetWorkingDirectoryArgument(args, out string? requestedPath))
-            {
-                return null;
-            }
+            // نص منطقي بلا BOM: الخرج موجه للبرامج لا للعرض البصري.
+            using var output = OpenStandardWriter(System.Console.OpenStandardOutput());
+            using var error = OpenStandardWriter(System.Console.OpenStandardError());
+            using var cancellation = new CancellationTokenSource();
+            using var interrupt = PosixSignalRegistration.Create(PosixSignal.SIGINT, Cancel);
+            using var quit = PosixSignalRegistration.Create(PosixSignal.SIGQUIT, Cancel);
+            using var terminate = PosixSignalRegistration.Create(PosixSignal.SIGTERM, Cancel);
 
+            return CommandModeHost.Run(commandLine, output, error, cancellationToken: cancellation.Token);
+
+            void Cancel(PosixSignalContext context)
+            {
+                context.Cancel = true;
+                cancellation.Cancel();
+            }
+        }
+
+        private static StreamWriter OpenStandardWriter(Stream stream) =>
+            new(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) { AutoFlush = true };
+
+        private static string? ResolveInitialWorkingDirectory(string? requestedPath, ConsoleExecutionSink sink)
+        {
             if (string.IsNullOrWhiteSpace(requestedPath))
             {
                 return null;
@@ -138,33 +171,6 @@ namespace ArbSh.Console
                 sink.WriteWarning($"تحذير: تعذّر استخدام المجلد الابتدائي '{requestedPath}': {ex.Message}");
                 return null;
             }
-        }
-
-        private static bool TryGetWorkingDirectoryArgument(string[] args, out string? path)
-        {
-            path = null;
-            if (args.Length == 0)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < args.Length; i++)
-            {
-                string arg = args[i];
-                if (arg.StartsWith("--working-dir=", StringComparison.OrdinalIgnoreCase))
-                {
-                    path = arg.Substring("--working-dir=".Length).Trim();
-                    return true;
-                }
-
-                if (string.Equals(arg, "--working-dir", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-                {
-                    path = args[i + 1];
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 }

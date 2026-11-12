@@ -195,7 +195,9 @@ namespace ArbSh.Core
                                 }
 
                                 cmdletInstance.EndProcessing();
-                                stageExitCodes[stageIndex] = 0;
+                                stageExitCodes[stageIndex] = cmdletInstance.WroteError
+                                    ? HostExitCodes.CommandFailed
+                                    : HostExitCodes.Success;
                                 CoreConsole.WriteLine($"DEBUG (Executor Task): '{currentCommand.CommandName}' finished processing.");
                             }
                             catch (ParameterBindingException bindEx)
@@ -683,9 +685,9 @@ namespace ArbSh.Core
             return result.TerminationReason switch
             {
                 ExternalProcessTerminationReason.Exited => result.ExitCode ?? 1,
-                ExternalProcessTerminationReason.Cancelled => 130,
-                ExternalProcessTerminationReason.LaunchFailed => 127,
-                ExternalProcessTerminationReason.OwnershipFailed => 125,
+                ExternalProcessTerminationReason.Cancelled => HostExitCodes.Cancelled,
+                ExternalProcessTerminationReason.LaunchFailed => HostExitCodes.LaunchFailed,
+                ExternalProcessTerminationReason.OwnershipFailed => HostExitCodes.OwnershipFailed,
                 _ => 1
             };
         }

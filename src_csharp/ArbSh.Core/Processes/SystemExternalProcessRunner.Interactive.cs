@@ -417,7 +417,7 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
         public Task WaitForExitAsync(CancellationToken cancellationToken) =>
             Process.WaitForExitAsync(cancellationToken);
 
-        public void Terminate() => _treeOwner?.Terminate(exitCode: 130);
+        public void Terminate() => _treeOwner?.Terminate(exitCode: HostExitCodes.Cancelled);
 
         public void Kill() => TerminateProcess(Process);
 

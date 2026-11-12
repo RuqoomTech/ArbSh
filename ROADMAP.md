@@ -93,7 +93,7 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 #### 6.0 Eco Host Contract
 - [x] Register ArbSh as an independently released Eco ecosystem project.
 - [x] Document the planned [`arbsh-host-v1`](docs/ARBSH_HOST_V1.md) ownership and admission boundary.
-- [ ] Freeze the CLI, session, UTF-8 stream, exit-status, environment, working-directory, and cancellation contract.
+- [x] Freeze the CLI, session, UTF-8 stream, exit-status, environment, working-directory, and cancellation contract: `arbsh --version`, `--command` with final exit codes 0/1/2/125/127/130, and `--events=jsonl` (`arbsh-events-v1`).
 - [ ] Keep Baa, Nazm, and Takween directly invokable; ArbSh must remain an optional developer-experience layer.
 
 #### 6.1 Hosting the Baa Compiler

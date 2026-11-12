@@ -53,9 +53,21 @@ ArbSh> أداة-خارجية > "خرج.txt" 2> "خطأ.txt"
 ```
 
 تظل الأوامر العربية الداخلية أعلى أولوية من أي برنامج خارجي يحمل الاسم نفسه.
-وتحفظ `ShellSessionState.LastExitCode` رمز البرنامج الحقيقي؛ ويستخدم أربش
-مؤقتًا 127 لفشل الإطلاق و130 للإلغاء. البرامج التفاعلية والبث الحي تنتظر مسار
-PTY/ConPTY في الخطوة التالية.
+وتحفظ `ShellSessionState.LastExitCode` رمز البرنامج الحقيقي؛ ويستخدم أربش 127
+لفشل الإطلاق و130 للإلغاء و125 لتعذر امتلاك شجرة العملية.
+
+### أمر واحد من سكربت أو برنامج آخر (`arbsh-host-v1`)
+
+```bash
+arbsh --version
+arbsh --command 'اطبع "مرحبا"'
+arbsh --working-dir "مشروع عربي" --command 'تشغيل'
+arbsh --command 'dotnet --version' --events=jsonl
+```
+
+الخرج نص منطقي UTF-8 بلا BOM، ورمز الخروج هو رمز الأمر: 0 للنجاح، و1 لخطأ أمر
+داخلي، و2 لخطأ الاستخدام، وإلا رمز البرنامج الخارجي. التفاصيل والأحداث في
+[`ARBSH_HOST_V1.md`](ARBSH_HOST_V1.md).
 
 ### Avalonia Terminal Host (Phase 5 Foundation)
 1. Navigate to the repository root.

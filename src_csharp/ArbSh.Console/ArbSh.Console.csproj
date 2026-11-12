@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- اسم البرنامج جزء من arbsh-host-v1. -->
+    <AssemblyName>arbsh</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

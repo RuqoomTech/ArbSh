@@ -88,7 +88,7 @@ public static class EcoRunPlanner
     /// <summary>
     /// رمز الخروج عند تعذر تحديد ما يُشغَّل.
     /// </summary>
-    public const int UsageExitCode = 2;
+    public const int UsageExitCode = HostExitCodes.Usage;
 
     private static readonly string[] BaaSourceExtensions = [".baa", ".باء"];
 

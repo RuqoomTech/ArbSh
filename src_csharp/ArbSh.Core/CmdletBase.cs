@@ -43,6 +43,11 @@ namespace ArbSh.Core
         /// <param name="output">The object to write.</param>
         protected void WriteObject(object? output)
         {
+            if (output is PipelineObject { IsError: true })
+            {
+                WroteError = true;
+            }
+
             if (OutputCollection != null && !OutputCollection.IsAddingCompleted)
             {
                 try
@@ -82,6 +87,11 @@ namespace ArbSh.Core
                 }
             }
         }
+
+        /// <summary>
+        /// هل كتب الأمر كائن خطأ؟ عندها يخرج برمز <see cref="HostExitCodes.CommandFailed"/>.
+        /// </summary>
+        internal bool WroteError { get; private set; }
 
         // TODO: Add WriteError, WriteWarning, WriteVerbose, WriteDebug methods
 

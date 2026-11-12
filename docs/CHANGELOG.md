@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Frozen Host Surface (`arbsh-host-v1`)**: The console host is now the
+  `arbsh` program with `--version`, `--help`, `--command <line>`, and
+  `--events=jsonl`. Command mode writes logical UTF-8 without a BOM, skips the
+  terminal relaunch and banner, cancels on SIGINT/SIGQUIT/SIGTERM, and exits
+  with final codes: 0 success, 1 built-in error, 2 usage, 125 ownership
+  failure, 127 launch failure, 130 cancelled, otherwise the program's own code.
 - **Eco Ecosystem Membership**: Registered ArbSh as the independently released
   Arabic-first shell and terminal host for the Baa ecosystem.
 - **Host Contract Plan**: Added `docs/ARBSH_HOST_V1.md` to define ownership,
@@ -107,6 +113,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ownership differ. The interactive tests run on Ubuntu as well as Windows.
 
 ### Changed
+- **Built-in Exit Codes**: An Arabic built-in that reports an error (for
+  example `انتقل` to a missing folder) now sets the exit code to 1 instead
+  of 0. Unknown console-host options now fail with code 2 instead of being
+  ignored, and option names are case-sensitive.
 - **Windows Terminal Layout, Mirrored for Arabic**: The Avalonia host now
   draws its own title bar with right-to-left tabs, a new-tab button, a menu,
   and left-side caption buttons. It adds independent tab sessions with the
