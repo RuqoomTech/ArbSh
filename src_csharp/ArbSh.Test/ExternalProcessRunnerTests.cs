@@ -413,8 +413,9 @@ public sealed class ExternalProcessRunnerTests
         using var fixture = FixtureCopy.Create();
         var runner = new SystemExternalProcessRunner();
         var console = new InteractiveConsole();
-        // لا يُرسل الاسم إلا بعد ظهور الموجه غير المنتهي بسطر؛ عبر الأنابيب يعلق هذا إلى الأبد.
-        var sink = new PromptAnsweringSink("اسمك؟", () => console.TrySendLine("عمر"));
+        // لا يُرسل الاسم إلا بعد ظهور الموجه غير المنتهي بسطر على الشاشة الحية؛ عبر الأنابيب يعلق هذا إلى الأبد.
+        WhenScreenShows(console, "اسمك؟", () => console.TrySendLine("عمر"));
+        var sink = new RecordingOutputSink();
         const string quotedArgument = "وسيط \"مقتبس\" بمسافات";
         var request = new ExternalProcessRequest(
             ResolveDotNetHost(),
@@ -454,7 +455,8 @@ public sealed class ExternalProcessRunnerTests
         using var cancellation = new CancellationTokenSource();
         var runner = new SystemExternalProcessRunner();
         var console = new InteractiveConsole();
-        var sink = new PromptAnsweringSink("اسمك؟", cancellation.Cancel);
+        WhenScreenShows(console, "اسمك؟", cancellation.Cancel);
+        var sink = new RecordingOutputSink();
         var request = new ExternalProcessRequest(
             ResolveDotNetHost(),
             [fixture.AssemblyPath, "console-echo"],
@@ -483,7 +485,7 @@ public sealed class ExternalProcessRunnerTests
         ExternalProcessResult result = await runner.RunInteractiveAsync(
             request,
             new InteractiveConsole(),
-            new PromptAnsweringSink("لا شيء", () => { }));
+            new RecordingOutputSink());
 
         Assert.Equal(ExternalProcessTerminationReason.LaunchFailed, result.TerminationReason);
         Assert.False(string.IsNullOrWhiteSpace(result.FailureMessage));
@@ -501,30 +503,84 @@ public sealed class ExternalProcessRunnerTests
             commandLine);
     }
 
-    private sealed class PromptAnsweringSink(string prompt, Action answer) : IExternalProcessOutputSink
+    [Fact]
+    public async Task RunInteractiveAsync_StartsAtTheConsoleSizeAndFollowsResize()
     {
-        private readonly System.Text.StringBuilder _text = new();
-        private bool _answered;
-
-        public ValueTask WriteAsync(
-            ExternalProcessOutputChunk chunk,
-            CancellationToken cancellationToken = default)
+        if (!new SystemExternalProcessRunner().SupportsInteractive)
         {
-            bool answerNow;
-            lock (_text)
-            {
-                _text.Append(chunk.Text);
-                answerNow = !_answered && _text.ToString().Contains(prompt, StringComparison.Ordinal);
-                _answered |= answerNow;
-            }
-
-            if (answerNow)
-            {
-                answer();
-            }
-
-            return ValueTask.CompletedTask;
+            return;
         }
+
+        using var fixture = FixtureCopy.Create();
+        var runner = new SystemExternalProcessRunner();
+        var console = new InteractiveConsole();
+        console.Resize(100, 32);
+        WhenScreenShows(console, "غيّر الحجم؟", () =>
+        {
+            console.Resize(90, 25);
+            console.TrySendLine(string.Empty);
+        });
+        var request = new ExternalProcessRequest(
+            ResolveDotNetHost(),
+            [fixture.AssemblyPath, "console-size"],
+            fixture.RootDirectory);
+
+        ExternalProcessResult result = await runner
+            .RunInteractiveAsync(request, console, new RecordingOutputSink())
+            .WaitAsync(TimeSpan.FromSeconds(60));
+
+        Assert.Equal(0, result.ExitCode);
+        string[] lines = result.StandardOutput.Split('\n');
+        Assert.Single(lines, line => line == "size=100x32");
+        Assert.Single(lines, line => line == "size=90x25");
+    }
+
+    [Fact]
+    public async Task RunInteractiveAsync_AppliesCursorControlKeepsColorAndDropsTheAlternateScreen()
+    {
+        if (!new SystemExternalProcessRunner().SupportsInteractive)
+        {
+            return;
+        }
+
+        using var fixture = FixtureCopy.Create();
+        var runner = new SystemExternalProcessRunner();
+        var sink = new RecordingOutputSink();
+        var request = new ExternalProcessRequest(
+            ResolveDotNetHost(),
+            [fixture.AssemblyPath, "vt-screen"],
+            fixture.RootDirectory);
+
+        ExternalProcessResult result = await runner
+            .RunInteractiveAsync(request, new InteractiveConsole(), sink)
+            .WaitAsync(TimeSpan.FromSeconds(60));
+
+        Assert.Equal(0, result.ExitCode);
+        string[] lines = result.StandardOutput.Split('\n');
+        Assert.Single(lines, line => line == "Xbc");
+        Assert.Single(lines, line => line == "أحمر");
+        Assert.Single(lines, line => line == "تم");
+        Assert.DoesNotContain("abc", result.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("شاشة-بديلة", result.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain((char)27, result.StandardOutput);
+        Assert.Contains(sink.Chunks, chunk => chunk.Text.Contains("\u001b[0;31mأحمر", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ينفذ الإجراء مرة واحدة حين يظهر النص على الشاشة الحية للطرفية.
+    /// </summary>
+    private static void WhenScreenShows(InteractiveConsole console, string text, Action action)
+    {
+        int done = 0;
+        console.ScreenChanged += (_, _) =>
+        {
+            if (Volatile.Read(ref done) == 0
+                && console.GetLiveLines().Any(line => line.Contains(text, StringComparison.Ordinal))
+                && Interlocked.Exchange(ref done, 1) == 0)
+            {
+                action();
+            }
+        };
     }
 
     private static string ResolveDotNetHost()

@@ -109,7 +109,8 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 - [x] **Live Output Streaming:** Stream non-interactive UTF-8 `stdout` and `stderr` incrementally through the structured runner and ArbSh pipeline while preserving complete captured results.
 - [x] **Interactive Foreground Run (Windows):** `تشغيل` runs the user's program inside a ConPTY pseudo console in ArbSh.Terminal with incremental line input, UTF-8 code page, Job Object ownership, and `Ctrl + C` cancellation.
 - [x] **Interactive Foreground Run (Linux):** The same `تشغيل` flow runs in a POSIX pseudo-terminal; `posix_spawn` starts the program in its own session with the PTY as its controlling terminal, so process-group ownership and cancellation match the pipe path.
-- [ ] **Interactive Stream Handling:** Add interactive plain external commands, a VT screen grid for full-screen programs, terminal resize, control signals, and background-job flow.
+- [x] **VT Screen Grid and Resize:** Interactive output runs through a VT screen grid (cursor control, erase, scroll regions, SGR colors, alternate screen); finished lines move to the scrollback with their colors while prompts, progress bars, and full-screen screens stay live, and ConPTY/PTY follow the terminal window size.
+- [ ] **Interactive Stream Handling:** Add per-key input for interactive programs, interactive plain external commands, control signals, and background-job flow.
 - [x] **Arabic Path Support:** Preserve Arabic working directories, executable/argument paths, spaces, and empty arguments when launching external tools.
 - [x] **Structured Process Core:** Added reusable immutable request/result contracts, UTF-8 stream capture, exit/failure classification, and cancellation.
 - [x] **Structured Launch:** Build non-interactive external processes from argv/cwd/environment instead of concatenated shell command strings.
@@ -144,7 +145,7 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 - [ ] **IDE Integration:** Visual Studio Code extension compatibility for ArbSh scripts.
 - [ ] **Documentation Portal:** Generate an Arabic website documenting the shell features.
 - [x] **Standalone Installer Contract:** Pass install, upgrade, repair, health-check, and uninstall gates independently: an Inno Setup installer on Windows and `.deb`/`.tar.gz` packages on Linux, each driven through install of an older version, upgrade, repair, and clean removal in CI.
-- [ ] **Developer Kit Admission:** Join Baa-Developer-Kit only after the standalone installer and Windows/Linux host gates pass.
+- [x] **Developer Kit Admission:** Baa-Developer-Kit embeds the standalone installer as an optional, unchecked component (`/MERGETASKS="arbsh"`), verified by its clean-runner lifecycle; it becomes a default component after the full Eco E2.2 gate.
 - [ ] **Shared Arabic Corpus:** Publish `eco-arabic-text-corpus-v1` fixtures for Qalam, Pyramid-Engine, and a bounded future PyramidOS subset.
 
 ## 📊 Current Status Summary

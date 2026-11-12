@@ -34,6 +34,7 @@ public sealed class TerminalSurface : Control
     private string _frameSnapshotInputText = string.Empty;
     private int _frameSnapshotLineCount;
     private Size _frameSnapshotSize;
+    private (double FontSize, double LineHeight, Size Size) _terminalSizeKey;
 
     public TerminalSurface()
     {
@@ -347,6 +348,7 @@ public sealed class TerminalSurface : Control
             return;
         }
 
+        SyncTerminalSize();
         IReadOnlyList<TerminalLine> lineSnapshot = [.. _viewModel.Lines];
         TerminalFrameLayout frame = _layoutEngine.BuildFrameLayout(
             lineSnapshot,
@@ -417,6 +419,28 @@ public sealed class TerminalSurface : Control
         FormattedText formatted = _renderConfig.CreateFormattedText(instruction.Run.VisualText, instruction.Brush, flow);
         ApplyAnsiForegroundStyles(formatted, instruction);
         context.DrawText(formatted, instruction.Position + new Vector(0, _renderConfig.GetBaselineOffset(formatted.Baseline)));
+    }
+
+    /// <summary>
+    /// يحسب أعمدة الطرفية الزائفة وصفوفها من حجم السطح والخط، ويبلغ بهما عند تغيرهما.
+    /// </summary>
+    private void SyncTerminalSize()
+    {
+        var key = (_renderConfig.FontSize, _renderConfig.LineHeight, Bounds.Size);
+        if (_viewModel is null || key == _terminalSizeKey || Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        _terminalSizeKey = key;
+        const string sample = "0000000000";
+        double cellWidth = _renderConfig.CreateFormattedText(sample, Brushes.Transparent).Width / sample.Length;
+        double width = Bounds.Width - _renderConfig.Padding.Left - _renderConfig.Padding.Right;
+        double height = Bounds.Height - _renderConfig.Padding.Top - _renderConfig.Padding.Bottom;
+        int columns = Math.Max(20, (int)(width / Math.Max(1, cellWidth)));
+        // يبقى صف للموجه تحت شاشة البرنامج الحية.
+        int rows = Math.Max(5, (int)(height / Math.Max(1, _renderConfig.LineHeight)) - 1);
+        _viewModel.ResizeTerminal(columns, rows);
     }
 
     private void DrawSelection(DrawingContext context, PromptLayoutSnapshot snapshot)

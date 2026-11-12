@@ -19,6 +19,16 @@ internal static class Program
             return ConsoleEcho(arguments[1..]);
         }
 
+        if (arguments is ["console-size"])
+        {
+            return ConsoleSize();
+        }
+
+        if (arguments is ["vt-screen"])
+        {
+            return VtScreen();
+        }
+
         Console.InputEncoding = Encoding.UTF8;
         Console.OutputEncoding = Encoding.UTF8;
 
@@ -54,6 +64,27 @@ internal static class Program
         Console.Out.WriteLine($"env={Environment.GetEnvironmentVariable("ARBSH_PHASE2_VALUE")}");
         Console.Out.WriteLine($"arg={(arguments.Length > 1 ? arguments[1] : null)}");
         return 5;
+    }
+
+    private static int ConsoleSize()
+    {
+        // يطبع حجم طرفيته، وينتظر سطرًا يغير المضيف الحجم قبله، ثم يطبع الحجم الجديد.
+        Console.Out.WriteLine($"size={Console.WindowWidth}x{Console.WindowHeight}");
+        Console.Out.Write("غيّر الحجم؟ ");
+        Console.In.ReadLine();
+        Console.Out.WriteLine($"size={Console.WindowWidth}x{Console.WindowHeight}");
+        return 0;
+    }
+
+    private static int VtScreen()
+    {
+        // عودة بداية السطر تكتب فوقه، واللون يبقى SGR، والشاشة البديلة لا تبقى في السجل.
+        Console.Out.Write("abc\rX\n");
+        Console.Out.Write("\u001b[31mأحمر\u001b[0m\n");
+        Console.Out.Write("\u001b[?1049hشاشة-بديلة\u001b[?1049l");
+        Console.Out.Write("تم\n");
+        Console.Out.Flush();
+        return 0;
     }
 
     private static async Task<int> InspectAsync(string[] arguments)

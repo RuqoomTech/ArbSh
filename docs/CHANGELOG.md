@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **VT Screen Grid**: Programs run by `تشغيل` in ArbSh.Terminal now draw
+  through a VT screen model: cursor movement, erase, insert/delete, scroll
+  regions, 16/256/true-color SGR, the alternate screen, and cursor-position
+  replies. Finished lines go to the scrollback with their colors; prompts,
+  `\r` progress bars, and full-screen screens stay live at the bottom, and the
+  alternate screen never enters the log. Arabic combining marks stay on their
+  letter's cell. On Linux the program now sees `TERM=xterm-256color`.
+- **Terminal Resize**: ConPTY and the Linux PTY start at the terminal
+  surface's size in columns and rows and follow window and zoom changes
+  (`ResizePseudoConsole`, `TIOCSWINSZ`).
 - **Standalone Installers**: `scripts/build_installer.ps1` builds an Inno Setup
   installer (`arbsh-setup-<version>-x64.exe`, per-user or all users) using the
   shared Eco helpers: `arbsh.exe` alone in `bin` on PATH with ownership

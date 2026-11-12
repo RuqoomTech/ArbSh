@@ -13,9 +13,6 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
     public bool SupportsInteractive =>
         OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763) || OperatingSystem.IsLinux();
 
-    // موجه بلا نهاية سطر («الاسم: ») يجب أن يظهر قبل أن يكتب المستخدم؛ يُصرف كسطر بعد هذه المهلة.
-    private static readonly TimeSpan PartialLineFlushDelay = TimeSpan.FromMilliseconds(150);
-
     /// <inheritdoc />
     public async Task<ExternalProcessResult> RunInteractiveAsync(
         ExternalProcessRequest request,
@@ -47,8 +44,8 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
         try
         {
             terminal = OperatingSystem.IsWindows()
-                ? WindowsPseudoConsoleProcess.StartSuspended(request)
-                : LinuxPseudoTerminalProcess.Start(request);
+                ? WindowsPseudoConsoleProcess.StartSuspended(request, console.Columns, console.Rows)
+                : LinuxPseudoTerminalProcess.Start(request, console.Columns, console.Rows);
         }
         catch (Exception exception) when (IsLaunchException(exception))
         {
@@ -56,8 +53,15 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
         }
 
         using (terminal)
+        using (InteractiveConsole.Session session = console.Attach(terminal.WriteInput, terminal.Resize))
         {
-            Task<string> outputTask = PumpTerminalOutputAsync(terminal.Output, outputSink);
+            // قد يتغير حجم النافذة بين قراءة الحجم وبدء الطرفية.
+            if (console.Columns != terminal.Columns || console.Rows != terminal.Rows)
+            {
+                session.Resize(console.Columns, console.Rows);
+            }
+
+            Task<string> outputTask = PumpTerminalOutputAsync(terminal.Output, session, outputSink);
             try
             {
                 terminal.Own();
@@ -72,27 +76,24 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
 
             bool cancelled = false;
             string? cancellationFailure = null;
-            using (console.Attach(terminal.WriteInput))
+            try
             {
+                await terminal.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                cancelled = true;
                 try
                 {
-                    await terminal.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                    terminal.Terminate();
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                catch (Exception exception) when (IsOwnershipException(exception))
                 {
-                    cancelled = true;
-                    try
-                    {
-                        terminal.Terminate();
-                    }
-                    catch (Exception exception) when (IsOwnershipException(exception))
-                    {
-                        cancellationFailure = exception.Message;
-                        terminal.Kill();
-                    }
-
-                    await terminal.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                    cancellationFailure = exception.Message;
+                    terminal.Kill();
                 }
+
+                await terminal.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
             // لا تنغلق قناة الخرج بخروج البرنامج؛ الإغلاق ينهي ما بقي من الشجرة ويصرف الخرج ثم ينهيه.
@@ -120,42 +121,38 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
     }
 
     /// <summary>
-    /// يقرأ خرج الطرفية الزائفة حتى تُغلق، ويبثه نصًا سطريًا بلا تسلسلات VT.
+    /// يقرأ خرج الطرفية الزائفة حتى تُغلق ويطبقه على شاشة الجلسة، ويبث كل سطر تسلّمه الشاشة.
+    /// الخرج المجمّع نص بلا تسلسلات؛ والأسطر المبثوثة تحفظ ألوان SGR لمن يعرضها.
     /// </summary>
     private static async Task<string> PumpTerminalOutputAsync(
         Stream terminalOutput,
+        InteractiveConsole.Session session,
         IExternalProcessOutputSink outputSink)
     {
         var captured = new StringBuilder();
-        var filter = new TerminalOutputFilter();
         Decoder decoder = Utf8WithoutBom.GetDecoder();
         byte[] bytes = new byte[4096];
         char[] characters = new char[Utf8WithoutBom.GetMaxCharCount(bytes.Length)];
-        bool midLine = false;
 
-        async ValueTask EmitAsync(string text)
+        async ValueTask EmitAsync(List<string> lines)
         {
-            captured.Append(text);
-            await outputSink
-                .WriteAsync(
-                    new ExternalProcessOutputChunk(ExternalProcessStream.StandardOutput, text),
-                    CancellationToken.None)
-                .ConfigureAwait(false);
+            foreach (string line in lines)
+            {
+                captured.Append(VtScreen.StripStyles(line)).Append('\n');
+                await outputSink
+                    .WriteAsync(
+                        new ExternalProcessOutputChunk(ExternalProcessStream.StandardOutput, line + "\n"),
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
         }
 
         while (true)
         {
-            Task<int> read = terminalOutput.ReadAsync(bytes, 0, bytes.Length);
-            if (midLine && await Task.WhenAny(read, Task.Delay(PartialLineFlushDelay)).ConfigureAwait(false) != read)
-            {
-                await EmitAsync("\n").ConfigureAwait(false);
-                midLine = false;
-            }
-
             int byteCount;
             try
             {
-                byteCount = await read.ConfigureAwait(false);
+                byteCount = await terminalOutput.ReadAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is IOException or ObjectDisposedException)
             {
@@ -169,16 +166,10 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
             }
 
             int characterCount = decoder.GetChars(bytes, 0, byteCount, characters, 0);
-            string text = filter.Filter(characters.AsSpan(0, characterCount));
-            if (text.Length == 0)
-            {
-                continue;
-            }
-
-            midLine = text[^1] is not ('\n' or '\r');
-            await EmitAsync(text).ConfigureAwait(false);
+            await EmitAsync(session.Feed(characters.AsSpan(0, characterCount))).ConfigureAwait(false);
         }
 
+        await EmitAsync(session.Finish()).ConfigureAwait(false);
         return captured.ToString();
     }
 
@@ -190,6 +181,13 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
         Stream Output { get; }
 
         ExternalProcessTreeOwnershipMode OwnershipMode { get; }
+
+        int Columns { get; }
+
+        int Rows { get; }
+
+        /// <summary>يغير حجم الطرفية الزائفة؛ يصل البرنامج إشعار تغيير الحجم من النظام.</summary>
+        void Resize(int columns, int rows);
 
         /// <summary>يمتلك شجرة العملية ثم يسمح لها بالعمل.</summary>
         void Own();
@@ -258,10 +256,6 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
     /// </summary>
     private sealed class WindowsPseudoConsoleProcess : IPseudoTerminalProcess
     {
-        // shortcut: حجم ثابت بلا تغيير حجم؛ يُربط بأعمدة الواجهة مع محاكي الشبكة الكامل.
-        private const short Columns = 120;
-        private const short Rows = 30;
-
         private const uint ExtendedStartupInfoPresent = 0x00080000;
         private const uint CreateUnicodeEnvironment = 0x00000400;
         private const uint CreateSuspended = 0x00000004;
@@ -282,8 +276,12 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
             FileStream output,
             IntPtr pseudoConsole,
             IntPtr attributeList,
-            ProcessInformation processInformation)
+            ProcessInformation processInformation,
+            int columns,
+            int rows)
         {
+            Columns = columns;
+            Rows = rows;
             _input = input;
             _output = output;
             _pseudoConsole = pseudoConsole;
@@ -299,7 +297,11 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
 
         public ExternalProcessTreeOwnershipMode OwnershipMode => ExternalProcessTreeOwnershipMode.WindowsJobObject;
 
-        public static WindowsPseudoConsoleProcess StartSuspended(ExternalProcessRequest request)
+        public int Columns { get; private set; }
+
+        public int Rows { get; private set; }
+
+        public static WindowsPseudoConsoleProcess StartSuspended(ExternalProcessRequest request, int columns, int rows)
         {
             if (!CreatePipe(out SafeFileHandle inputRead, out SafeFileHandle inputWrite, IntPtr.Zero, 0))
             {
@@ -320,7 +322,7 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
             try
             {
                 int result = CreatePseudoConsole(
-                    new Coordinate { X = Columns, Y = Rows },
+                    new Coordinate { X = (short)columns, Y = (short)rows },
                     inputRead,
                     outputWrite,
                     0,
@@ -363,7 +365,9 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
                         new FileStream(outputRead, FileAccess.Read, bufferSize: 1, isAsync: false),
                         pseudoConsole,
                         attributeList,
-                        processInformation);
+                        processInformation,
+                        columns,
+                        rows);
                 }
                 catch
                 {
@@ -435,6 +439,17 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
                 ResumeThread(_threadHandle);
                 CloseHandle(_threadHandle);
                 _threadHandle = IntPtr.Zero;
+            }
+        }
+
+        public void Resize(int columns, int rows)
+        {
+            IntPtr pseudoConsole = _pseudoConsole;
+            if (pseudoConsole != IntPtr.Zero
+                && ResizePseudoConsole(pseudoConsole, new Coordinate { X = (short)columns, Y = (short)rows }) == 0)
+            {
+                Columns = columns;
+                Rows = rows;
             }
         }
 
@@ -680,6 +695,9 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
             SafeFileHandle output,
             uint flags,
             out IntPtr pseudoConsole);
+
+        [DllImport("kernel32.dll")]
+        private static extern int ResizePseudoConsole(IntPtr pseudoConsole, Coordinate size);
 
         [DllImport("kernel32.dll", EntryPoint = "ClosePseudoConsole")]
         private static extern void ClosePseudoConsoleNative(IntPtr pseudoConsole);

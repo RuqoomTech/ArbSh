@@ -17,11 +17,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly InteractiveConsole _interactiveConsole = new();
     private CancellationTokenSource? _activeExecution;
     private string _statusText = "جاهز";
+    private int _liveLineCount;
+    private int _liveUpdatePending;
 
     public MainWindowViewModel(string? initialWorkingDirectory = null)
     {
         _session = new ShellSessionState(initialWorkingDirectory);
         _readonlyLines = new ReadOnlyObservableCollection<TerminalLine>(_lines);
+        _interactiveConsole.ScreenChanged += HandleScreenChanged;
         AddLine("مرحبًا بك في أربش", TerminalLineKind.System);
         AddLine("صدفة عربية حديثة — اكتب «الأوامر» للقائمة أو «مساعدة» للدليل.", TerminalLineKind.System);
         AddLine(string.Empty, TerminalLineKind.System);
@@ -132,6 +135,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// يضبط حجم الطرفية الزائفة بأعمدة السطح وصفوفه؛ يصل البرنامج الجاري إشعار تغيير الحجم.
+    /// </summary>
+    public void ResizeTerminal(int columns, int rows) => _interactiveConsole.Resize(columns, rows);
+
+    /// <summary>
     /// يلغي الأمر الجاري وينهي شجرة عملياته. يعيد false إذا لم يكن هناك أمر جارٍ.
     /// </summary>
     public bool CancelExecution()
@@ -158,15 +166,48 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void AddLine(string text, TerminalLineKind kind)
     {
-        _lines.Add(new TerminalLine(text, kind, DateTimeOffset.UtcNow));
+        // الأسطر المسلَّمة تسبق شاشة البرنامج الحية التي تبقى في أسفل السجل.
+        _lines.Insert(_lines.Count - _liveLineCount, new TerminalLine(text, kind, DateTimeOffset.UtcNow));
+        TrimLines();
+        BufferChanged?.Invoke(this, EventArgs.Empty);
+    }
 
+    private void HandleScreenChanged(object? sender, EventArgs e)
+    {
+        // يأتي من خيط القراءة مع كل قطعة خرج؛ تكفي إعادة رسم واحدة لكل دفعة.
+        if (Interlocked.Exchange(ref _liveUpdatePending, 1) == 0)
+        {
+            Dispatcher.UIThread.Post(UpdateLiveLines);
+        }
+    }
+
+    private void UpdateLiveLines()
+    {
+        Volatile.Write(ref _liveUpdatePending, 0);
+        IReadOnlyList<string> live = _interactiveConsole.GetLiveLines();
+        for (; _liveLineCount > 0; _liveLineCount--)
+        {
+            _lines.RemoveAt(_lines.Count - 1);
+        }
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        foreach (string line in live)
+        {
+            _lines.Add(new TerminalLine(line, TerminalLineKind.Output, now));
+        }
+
+        _liveLineCount = live.Count;
+        TrimLines();
+        BufferChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void TrimLines()
+    {
         const int maxLines = 5000;
-        while (_lines.Count > maxLines)
+        while (_lines.Count > maxLines && _lines.Count > _liveLineCount)
         {
             _lines.RemoveAt(0);
         }
-
-        BufferChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private static bool DetectElevation()

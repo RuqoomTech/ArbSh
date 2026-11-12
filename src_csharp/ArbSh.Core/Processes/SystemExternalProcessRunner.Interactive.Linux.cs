@@ -13,10 +13,6 @@ public sealed partial class SystemExternalProcessRunner
     /// </summary>
     private sealed class LinuxPseudoTerminalProcess : IPseudoTerminalProcess
     {
-        // shortcut: حجم ثابت بلا تغيير حجم؛ يُربط بأعمدة الواجهة مع محاكي الشبكة الكامل.
-        private const ushort Columns = 120;
-        private const ushort Rows = 30;
-
         private const int OpenReadWrite = 0x2;
         private const int OpenNoControllingTerminal = 0x100;
         private const int OpenCloseOnExec = 0x80000;
@@ -47,8 +43,12 @@ public sealed partial class SystemExternalProcessRunner
             SafeFileHandle master,
             SafeFileHandle masterWrite,
             SafeFileHandle slave,
-            int processId)
+            int processId,
+            int columns,
+            int rows)
         {
+            Columns = columns;
+            Rows = rows;
             _masterQuery = master;
             _output = new FileStream(master, FileAccess.Read, bufferSize: 1);
             _input = new FileStream(masterWrite, FileAccess.Write, bufferSize: 1);
@@ -65,7 +65,11 @@ public sealed partial class SystemExternalProcessRunner
 
         public ExternalProcessTreeOwnershipMode OwnershipMode => ExternalProcessTreeOwnershipMode.PosixProcessGroup;
 
-        public static LinuxPseudoTerminalProcess Start(ExternalProcessRequest request)
+        public int Columns { get; private set; }
+
+        public int Rows { get; private set; }
+
+        public static LinuxPseudoTerminalProcess Start(ExternalProcessRequest request, int columns, int rows)
         {
             string executable = ResolveLinuxTargetExecutable(request);
 
@@ -88,7 +92,7 @@ public sealed partial class SystemExternalProcessRunner
                 }
 
                 string slavePath = Encoding.UTF8.GetString(name, 0, Array.IndexOf(name, (byte)0));
-                var size = new WindowSize { Rows = Rows, Columns = Columns };
+                var size = new WindowSize { Rows = (ushort)rows, Columns = (ushort)columns };
                 SetSize(masterFd, SetWindowSize, ref size);
 
                 // يبقي ArbSh طرفًا تابعًا مفتوحًا حتى لا يرد القارئ EIO قبل أن يفتحه البرنامج.
@@ -96,7 +100,7 @@ public sealed partial class SystemExternalProcessRunner
                 masterWrite = ToHandle(Duplicate(masterFd, DuplicateCloseOnExec, 0));
 
                 int processId = Spawn(executable, request, slavePath);
-                return new LinuxPseudoTerminalProcess(master, masterWrite, slave, processId);
+                return new LinuxPseudoTerminalProcess(master, masterWrite, slave, processId, columns, rows);
             }
             catch
             {
@@ -104,6 +108,33 @@ public sealed partial class SystemExternalProcessRunner
                 masterWrite?.Dispose();
                 slave?.Dispose();
                 throw;
+            }
+        }
+
+        // ترسل النواة SIGWINCH إلى مجموعة العمليات الأمامية في الطرفية بعد تغيير حجمها.
+        public void Resize(int columns, int rows)
+        {
+            var size = new WindowSize { Rows = (ushort)rows, Columns = (ushort)columns };
+            bool added = false;
+            try
+            {
+                _masterQuery.DangerousAddRef(ref added);
+                if (SetSize((int)_masterQuery.DangerousGetHandle(), SetWindowSize, ref size) == 0)
+                {
+                    Columns = columns;
+                    Rows = rows;
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // انتهت الجلسة قبل تغيير الحجم.
+            }
+            finally
+            {
+                if (added)
+                {
+                    _masterQuery.DangerousRelease();
+                }
             }
         }
 
@@ -250,10 +281,10 @@ public sealed partial class SystemExternalProcessRunner
                 }
             }
 
-            // shortcut: TERM=dumb حتى توجد شبكة VT؛ البرامج تكتب نصًا سطريًا بلا ألوان ولا رسم شاشة.
+            // الطرفية التي يراها البرنامج هي شبكة VtScreen، لا طرفية مضيف ArbSh.
             if (!request.EnvironmentChanges.ContainsKey("TERM"))
             {
-                variables["TERM"] = "dumb";
+                variables["TERM"] = "xterm-256color";
             }
 
             return variables.Select(variable => $"{variable.Key}={variable.Value}");
