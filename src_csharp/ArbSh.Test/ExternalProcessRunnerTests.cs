@@ -404,8 +404,8 @@ public sealed class ExternalProcessRunnerTests
     [Fact]
     public async Task RunInteractiveAsync_ShowsPromptBeforeInputAndPreservesArabicExitCodeAndEnvironment()
     {
-        // طرفية Linux الزائفة لم تُنفذ بعد.
-        if (!OperatingSystem.IsWindows())
+        // macOS لا يملك طرفية زائفة بعد.
+        if (!new SystemExternalProcessRunner().SupportsInteractive)
         {
             return;
         }
@@ -432,7 +432,7 @@ public sealed class ExternalProcessRunnerTests
 
         Assert.Equal(ExternalProcessTerminationReason.Exited, result.TerminationReason);
         Assert.Equal(5, result.ExitCode);
-        Assert.Equal(ExternalProcessTreeOwnershipMode.WindowsJobObject, result.TreeOwnershipMode);
+        Assert.Equal(ExpectedOwnershipMode, result.TreeOwnershipMode);
         Assert.Contains("مرحبا عمر", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("tty=True", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("cwd=True", result.StandardOutput, StringComparison.Ordinal);
@@ -445,7 +445,7 @@ public sealed class ExternalProcessRunnerTests
     [Fact]
     public async Task RunInteractiveAsync_CancellationEndsAProgramWaitingForInput()
     {
-        if (!OperatingSystem.IsWindows())
+        if (!new SystemExternalProcessRunner().SupportsInteractive)
         {
             return;
         }
@@ -472,7 +472,7 @@ public sealed class ExternalProcessRunnerTests
     [Fact]
     public async Task RunInteractiveAsync_MissingProgramIsALaunchFailure()
     {
-        if (!OperatingSystem.IsWindows())
+        if (!new SystemExternalProcessRunner().SupportsInteractive)
         {
             return;
         }

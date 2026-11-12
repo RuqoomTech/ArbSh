@@ -9,8 +9,9 @@ public sealed class TerminalInteractiveRunTests
     [Fact]
     public async Task TypedLineReachesTheRunningBaaProgramAndCancelEndsAWaitingOne()
     {
-        // يحتاج baa على PATH وطرفية Windows الزائفة؛ تفعّله مهمة CI البيئية.
-        if (Environment.GetEnvironmentVariable("ARBSH_ECO_INTEGRATION") != "1" || !OperatingSystem.IsWindows())
+        // يحتاج baa على PATH وطرفية زائفة (Windows أو Linux)؛ تفعّله مهمة CI البيئية.
+        if (Environment.GetEnvironmentVariable("ARBSH_ECO_INTEGRATION") != "1"
+            || !new ArbSh.Core.Processes.SystemExternalProcessRunner().SupportsInteractive)
         {
             return;
         }

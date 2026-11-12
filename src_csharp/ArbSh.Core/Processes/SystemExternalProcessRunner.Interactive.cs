@@ -8,9 +8,13 @@ namespace ArbSh.Core.Processes;
 
 public sealed partial class SystemExternalProcessRunner : IInteractiveExternalProcessRunner
 {
-    // ConPTY متاح منذ Windows 10 1809. طرفية Linux الزائفة لم تُنفذ بعد.
+    // ConPTY متاح منذ Windows 10 1809؛ وعلى Linux طرفية POSIX الزائفة. يبقى macOS على الأنابيب.
     /// <inheritdoc />
-    public bool SupportsInteractive => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763);
+    public bool SupportsInteractive =>
+        OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763) || OperatingSystem.IsLinux();
+
+    // موجه بلا نهاية سطر («الاسم: ») يجب أن يظهر قبل أن يكتب المستخدم؛ يُصرف كسطر بعد هذه المهلة.
+    private static readonly TimeSpan PartialLineFlushDelay = TimeSpan.FromMilliseconds(150);
 
     /// <inheritdoc />
     public async Task<ExternalProcessResult> RunInteractiveAsync(
@@ -39,68 +43,61 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
                 failureMessage: null);
         }
 
-        WindowsPseudoConsoleProcess session;
+        IPseudoTerminalProcess terminal;
         try
         {
-            session = WindowsPseudoConsoleProcess.StartSuspended(request);
+            terminal = OperatingSystem.IsWindows()
+                ? WindowsPseudoConsoleProcess.StartSuspended(request)
+                : LinuxPseudoTerminalProcess.Start(request);
         }
         catch (Exception exception) when (IsLaunchException(exception))
         {
             return CreateLaunchFailure(stopwatch.Elapsed, exception.Message);
         }
 
-        using (session)
+        using (terminal)
         {
-            Task<string> outputTask = session.PumpOutputAsync(outputSink);
-            IExternalProcessTreeOwner treeOwner;
+            Task<string> outputTask = PumpTerminalOutputAsync(terminal.Output, outputSink);
             try
             {
-                treeOwner = ExternalProcessTreeOwner.Attach(session.Process);
+                terminal.Own();
             }
             catch (Exception exception) when (IsOwnershipException(exception))
             {
-                TerminateProcess(session.Process);
-                session.ClosePseudoConsole();
+                terminal.Kill();
+                terminal.Close();
                 string failedOutput = await outputTask.ConfigureAwait(false);
                 return CreateOwnershipFailure(stopwatch.Elapsed, failedOutput, string.Empty, exception.Message);
             }
 
             bool cancelled = false;
             string? cancellationFailure = null;
-            try
+            using (console.Attach(terminal.WriteInput))
             {
-                using (console.Attach(session.WriteInput))
+                try
                 {
-                    session.Resume();
+                    await terminal.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    cancelled = true;
                     try
                     {
-                        await session.Process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                        terminal.Terminate();
                     }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    catch (Exception exception) when (IsOwnershipException(exception))
                     {
-                        cancelled = true;
-                        try
-                        {
-                            treeOwner.Terminate(exitCode: 130);
-                        }
-                        catch (Exception exception) when (IsOwnershipException(exception))
-                        {
-                            cancellationFailure = exception.Message;
-                            TerminateProcess(session.Process);
-                        }
-
-                        await session.Process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                        cancellationFailure = exception.Message;
+                        terminal.Kill();
                     }
+
+                    await terminal.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
             }
-            finally
-            {
-                treeOwner.Dispose();
-            }
 
-            // لا تنغلق قناة الخرج بخروج البرنامج؛ إغلاق الطرفية الزائفة يصرف ما بقي ثم ينهيها.
-            int exitCode = session.GetExitCode();
-            session.ClosePseudoConsole();
+            // لا تنغلق قناة الخرج بخروج البرنامج؛ الإغلاق ينهي ما بقي من الشجرة ويصرف الخرج ثم ينهيه.
+            int exitCode = terminal.GetExitCode();
+            terminal.Close();
             string output = await outputTask.ConfigureAwait(false);
             stopwatch.Stop();
 
@@ -109,7 +106,7 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
                     stopwatch.Elapsed,
                     output,
                     string.Empty,
-                    ExternalProcessTreeOwnershipMode.WindowsJobObject,
+                    terminal.OwnershipMode,
                     cancellationFailure)
                 : new ExternalProcessResult(
                     ExternalProcessTerminationReason.Exited,
@@ -118,8 +115,99 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
                     string.Empty,
                     stopwatch.Elapsed,
                     failureMessage: null,
-                    ExternalProcessTreeOwnershipMode.WindowsJobObject);
+                    terminal.OwnershipMode);
         }
+    }
+
+    /// <summary>
+    /// يقرأ خرج الطرفية الزائفة حتى تُغلق، ويبثه نصًا سطريًا بلا تسلسلات VT.
+    /// </summary>
+    private static async Task<string> PumpTerminalOutputAsync(
+        Stream terminalOutput,
+        IExternalProcessOutputSink outputSink)
+    {
+        var captured = new StringBuilder();
+        var filter = new TerminalOutputFilter();
+        Decoder decoder = Utf8WithoutBom.GetDecoder();
+        byte[] bytes = new byte[4096];
+        char[] characters = new char[Utf8WithoutBom.GetMaxCharCount(bytes.Length)];
+        bool midLine = false;
+
+        async ValueTask EmitAsync(string text)
+        {
+            captured.Append(text);
+            await outputSink
+                .WriteAsync(
+                    new ExternalProcessOutputChunk(ExternalProcessStream.StandardOutput, text),
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
+        while (true)
+        {
+            Task<int> read = terminalOutput.ReadAsync(bytes, 0, bytes.Length);
+            if (midLine && await Task.WhenAny(read, Task.Delay(PartialLineFlushDelay)).ConfigureAwait(false) != read)
+            {
+                await EmitAsync("\n").ConfigureAwait(false);
+                midLine = false;
+            }
+
+            int byteCount;
+            try
+            {
+                byteCount = await read.ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+            {
+                // يرد Linux بالخطأ EIO على قارئ الطرفية بعد إغلاق آخر طرف تابع.
+                break;
+            }
+
+            if (byteCount == 0)
+            {
+                break;
+            }
+
+            int characterCount = decoder.GetChars(bytes, 0, byteCount, characters, 0);
+            string text = filter.Filter(characters.AsSpan(0, characterCount));
+            if (text.Length == 0)
+            {
+                continue;
+            }
+
+            midLine = text[^1] is not ('\n' or '\r');
+            await EmitAsync(text).ConfigureAwait(false);
+        }
+
+        return captured.ToString();
+    }
+
+    /// <summary>
+    /// عملية متصلة بطرفية زائفة. الترتيب: البدء ثم Own ثم الانتظار ثم GetExitCode ثم Close.
+    /// </summary>
+    private interface IPseudoTerminalProcess : IDisposable
+    {
+        Stream Output { get; }
+
+        ExternalProcessTreeOwnershipMode OwnershipMode { get; }
+
+        /// <summary>يمتلك شجرة العملية ثم يسمح لها بالعمل.</summary>
+        void Own();
+
+        void WriteInput(string text);
+
+        Task WaitForExitAsync(CancellationToken cancellationToken);
+
+        /// <summary>ينهي الشجرة عبر مالكها؛ قد يرمي استثناء ملكية.</summary>
+        void Terminate();
+
+        /// <summary>إنهاء احتياطي لا يرمي.</summary>
+        void Kill();
+
+        int GetExitCode();
+
+        /// <summary>ينهي ما بقي من الشجرة ويغلق الطرف التابع حتى ينتهي الخرج.</summary>
+        void Close();
     }
 
     /// <summary>
@@ -168,14 +256,11 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
     /// <summary>
     /// عملية Windows متصلة بطرفية زائفة ConPTY، تُنشأ معلقة ليمتلك Job Object شجرتها قبل أن تعمل.
     /// </summary>
-    private sealed class WindowsPseudoConsoleProcess : IDisposable
+    private sealed class WindowsPseudoConsoleProcess : IPseudoTerminalProcess
     {
         // shortcut: حجم ثابت بلا تغيير حجم؛ يُربط بأعمدة الواجهة مع محاكي الشبكة الكامل.
         private const short Columns = 120;
         private const short Rows = 30;
-
-        // موجه بلا نهاية سطر («الاسم: ») يجب أن يظهر قبل أن يكتب المستخدم؛ يُصرف كسطر بعد هذه المهلة.
-        private static readonly TimeSpan PartialLineFlushDelay = TimeSpan.FromMilliseconds(150);
 
         private const uint ExtendedStartupInfoPresent = 0x00080000;
         private const uint CreateUnicodeEnvironment = 0x00000400;
@@ -190,6 +275,7 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
         private readonly SafeProcessHandle _processHandle;
         private IntPtr _threadHandle;
         private IntPtr _pseudoConsole;
+        private IExternalProcessTreeOwner? _treeOwner;
 
         private WindowsPseudoConsoleProcess(
             FileStream input,
@@ -208,6 +294,10 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
         }
 
         public Process Process { get; }
+
+        public Stream Output => _output;
+
+        public ExternalProcessTreeOwnershipMode OwnershipMode => ExternalProcessTreeOwnershipMode.WindowsJobObject;
 
         public static WindowsPseudoConsoleProcess StartSuspended(ExternalProcessRequest request)
         {
@@ -318,7 +408,27 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
             }
         }
 
-        public void Resume()
+        public void Own()
+        {
+            _treeOwner = ExternalProcessTreeOwner.Attach(Process);
+            Resume();
+        }
+
+        public Task WaitForExitAsync(CancellationToken cancellationToken) =>
+            Process.WaitForExitAsync(cancellationToken);
+
+        public void Terminate() => _treeOwner?.Terminate(exitCode: 130);
+
+        public void Kill() => TerminateProcess(Process);
+
+        public void Close()
+        {
+            _treeOwner?.Dispose();
+            _treeOwner = null;
+            ClosePseudoConsole();
+        }
+
+        private void Resume()
         {
             if (_threadHandle != IntPtr.Zero)
             {
@@ -345,63 +455,6 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
             }
         }
 
-        public async Task<string> PumpOutputAsync(IExternalProcessOutputSink outputSink)
-        {
-            var captured = new StringBuilder();
-            var filter = new TerminalOutputFilter();
-            Decoder decoder = Utf8WithoutBom.GetDecoder();
-            byte[] bytes = new byte[4096];
-            char[] characters = new char[Utf8WithoutBom.GetMaxCharCount(bytes.Length)];
-            bool midLine = false;
-
-            async ValueTask EmitAsync(string text)
-            {
-                captured.Append(text);
-                await outputSink
-                    .WriteAsync(
-                        new ExternalProcessOutputChunk(ExternalProcessStream.StandardOutput, text),
-                        CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
-
-            while (true)
-            {
-                Task<int> read = _output.ReadAsync(bytes, 0, bytes.Length);
-                if (midLine && await Task.WhenAny(read, Task.Delay(PartialLineFlushDelay)).ConfigureAwait(false) != read)
-                {
-                    await EmitAsync("\n").ConfigureAwait(false);
-                    midLine = false;
-                }
-
-                int byteCount;
-                try
-                {
-                    byteCount = await read.ConfigureAwait(false);
-                }
-                catch (Exception exception) when (exception is IOException or ObjectDisposedException)
-                {
-                    break;
-                }
-
-                if (byteCount == 0)
-                {
-                    break;
-                }
-
-                int characterCount = decoder.GetChars(bytes, 0, byteCount, characters, 0);
-                string text = filter.Filter(characters.AsSpan(0, characterCount));
-                if (text.Length == 0)
-                {
-                    continue;
-                }
-
-                midLine = text[^1] is not ('\n' or '\r');
-                await EmitAsync(text).ConfigureAwait(false);
-            }
-
-            return captured.ToString();
-        }
-
         public int GetExitCode()
         {
             if (!GetExitCodeProcess(_processHandle, out int exitCode))
@@ -412,7 +465,7 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
             return exitCode;
         }
 
-        public void ClosePseudoConsole()
+        private void ClosePseudoConsole()
         {
             IntPtr pseudoConsole = Interlocked.Exchange(ref _pseudoConsole, IntPtr.Zero);
             if (pseudoConsole != IntPtr.Zero)
@@ -429,7 +482,7 @@ public sealed partial class SystemExternalProcessRunner : IInteractiveExternalPr
                 _threadHandle = IntPtr.Zero;
             }
 
-            ClosePseudoConsole();
+            Close();
             _input.Dispose();
             _output.Dispose();
             DeleteProcThreadAttributeList(_attributeList);

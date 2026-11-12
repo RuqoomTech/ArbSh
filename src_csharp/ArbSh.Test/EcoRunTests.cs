@@ -398,8 +398,8 @@ public sealed class EcoRunTests
     [Fact]
     public void Integration_InteractiveBaaProgramReadsWhatTheUserTypes()
     {
-        // يحتاج baa على PATH وطرفية Windows الزائفة؛ تفعّله مهمة CI البيئية.
-        if (Environment.GetEnvironmentVariable(IntegrationVariable) != "1" || !OperatingSystem.IsWindows())
+        // يحتاج baa على PATH وطرفية زائفة (Windows أو Linux)؛ تفعّله مهمة CI البيئية.
+        if (Environment.GetEnvironmentVariable(IntegrationVariable) != "1" || !new SystemExternalProcessRunner().SupportsInteractive)
         {
             return;
         }
