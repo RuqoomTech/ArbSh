@@ -39,11 +39,13 @@ SignedUninstaller=yes
 #endif
 Compression=lzma2/ultra64
 SolidCompression=yes
-WizardStyle=modern
+WizardStyle=modern dynamic windows11 hidebevels
 WizardSizePercent=110,110
 DisableWelcomePage=no
 WizardImageFile=installer\wizard-sidebar.png
+WizardImageFileDynamicDark=installer\wizard-sidebar.png
 WizardSmallImageFile=installer\wizard-mark.png
+WizardSmallImageFileDynamicDark=installer\wizard-mark.png
 WizardImageStretch=yes
 LZMANumBlockThreads=1
 CompressionThreads=1
@@ -70,7 +72,7 @@ WelcomeFontName=Segoe UI
 
 [Messages]
 arabic.WelcomeLabel1=صدفة وطرفية عربية
-arabic.WelcomeLabel2=أربش صدفة عربية أولًا وطرفية مستقلة.%n%nيضيف المثبت الأمر arbsh إلى PATH لتستدعيه السكربتات والأدوات الأخرى.
+arabic.WelcomeLabel2=أربش صدفة عربية أولًا وطرفية مستقلة.%n%nيضيف المثبت الأمر arbsh إلى PATH%nلتستدعيه السكربتات والأدوات الأخرى.
 english.WelcomeLabel1=An Arabic shell and terminal
 english.WelcomeLabel2=ArbSh is an Arabic-first shell with a standalone terminal.%n%nSetup adds the arbsh command to PATH for scripts and other tools.
 
