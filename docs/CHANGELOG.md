@@ -97,6 +97,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runner, command-line quoting, the VT filter, and executor routing; two gated
   tests drive a real Baa program through the executor and the terminal view
   model.
+- **Interactive `تشغيل` on Linux (PTY)**: The same interactive flow now runs
+  in a POSIX pseudo-terminal. `posix_spawn` starts the program in a new session
+  whose controlling terminal is the PTY, with default signal dispositions and an
+  empty signal mask, so it owns its process group from the first instruction
+  without an intermediate `setsid`; cancellation and background cleanup use
+  that group. `TERM` defaults to `dumb` until a VT screen grid exists. ConPTY
+  and the PTY now share one interactive flow; only terminal creation and tree
+  ownership differ. The interactive tests run on Ubuntu as well as Windows.
 
 ### Changed
 - **Windows Terminal Layout, Mirrored for Arabic**: The Avalonia host now
