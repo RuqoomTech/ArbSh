@@ -67,7 +67,7 @@ public partial class MainWindow : Window
     /// </summary>
     public TerminalTab AddTab(string? workingDirectory)
     {
-        var session = new MainWindowViewModel(workingDirectory);
+        var session = new MainWindowViewModel(workingDirectory, new ArbSh.Core.Hosting.CommandHistory(ArbSh.Core.Hosting.CommandHistory.DefaultFilePath));
         var tab = new TerminalTab(session);
         session.ExitRequested += (_, _) => CloseTab(tab);
 

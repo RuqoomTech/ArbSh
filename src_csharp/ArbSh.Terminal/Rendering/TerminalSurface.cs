@@ -5,6 +5,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using ArbSh.Core.I18n;
+using ArbSh.Core.Hosting;
 using ArbSh.Core.Processes;
 using ArbSh.Terminal.Input;
 using ArbSh.Terminal.Models;
@@ -342,10 +343,46 @@ public sealed class TerminalSurface : Control
                 e.Handled = true;
                 break;
 
+            case Key.Up:
+            case Key.Down:
+                if (_viewModel is not null)
+                {
+                    string? recalled = e.Key == Key.Up
+                        ? _viewModel.History.Previous(_inputBuffer.Text)
+                        : _viewModel.History.Next();
+                    if (recalled is not null)
+                    {
+                        _inputBuffer.Clear();
+                        _inputBuffer.InsertText(recalled);
+                    }
+                }
+
+                _outputSelection.Clear();
+                _scrollbackOffsetLines = 0;
+                InvalidateVisual();
+                e.Handled = true;
+                break;
+
+            case Key.Tab:
+                if (_viewModel is not null)
+                {
+                    _inputBuffer.ClearSelection();
+                    CompletionResult completion = _viewModel.Complete(_inputBuffer.Text, _inputBuffer.CaretIndex);
+                    _inputBuffer.Clear();
+                    _inputBuffer.InsertText(completion.Text);
+                    _inputBuffer.SetCaretFromLogicalIndex(completion.Caret);
+                }
+
+                _scrollbackOffsetLines = 0;
+                InvalidateVisual();
+                // يمنع Tab من نقل التركيز خارج الطرفية.
+                e.Handled = true;
+                break;
+
             case Key.Enter:
                 _outputSelection.Clear();
                 _scrollbackOffsetLines = 0;
-                await SubmitInputBufferAsync();
+                await SubmitInputBufferAsync(continueInput: shift);
                 e.Handled = true;
                 break;
         }
@@ -707,7 +744,7 @@ public sealed class TerminalSurface : Control
         context.DrawRectangle(_renderConfig.PromptBrush, null, cursorRect);
     }
 
-    private async Task SubmitInputBufferAsync()
+    private async Task SubmitInputBufferAsync(bool continueInput)
     {
         if (_viewModel is null)
         {
@@ -721,7 +758,7 @@ public sealed class TerminalSurface : Control
         InvalidateVisual();
 
         // النموذج يتجاهل السطر الفارغ إلا إذا كان برنامج تفاعلي ينتظره.
-        await _viewModel.SubmitInputAsync(input);
+        await _viewModel.SubmitInputAsync(input, continueInput: continueInput);
     }
 
     private void MoveCaretVisual(bool moveLeft, bool extendSelection)

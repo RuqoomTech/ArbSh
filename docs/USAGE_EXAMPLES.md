@@ -88,6 +88,9 @@ arbsh --command 'dotnet --version' --events=jsonl
 - `Shift + Arrow` extends selection.
 - `Ctrl + A/C/X/V` supports select-all, copy, cut, and paste in prompt input.
 - Mouse click places caret and mouse drag extends selection in the prompt line.
+- `Up` / `Down` walk the command history, which is kept between sessions.
+- `Tab` completes Arabic command names and file or directory paths; several matches are listed.
+- `Shift + Enter`, an open quote or bracket, or a trailing `|` continue the command on a `>>` line; `Ctrl + C` drops it.
 
 ### Avalonia Terminal Emulator Notes (Phase 5.4)
 - The prompt follows the last output line, as in Windows Terminal, and stays inside the viewport once output overflows.

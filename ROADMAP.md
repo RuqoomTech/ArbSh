@@ -128,9 +128,10 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 **Polishing the developer experience.**
 
 #### 7.1 Interactive UX
-- [ ] **IntelliSense & Tab Completion:** Arabic-aware predictive text and auto-completion for commands, paths, and arguments.
-- [ ] **Command History:** Persistent history (`سجل`) navigated with Up/Down arrows.
-- [ ] **Multiline Input:** Support for writing control blocks or functions over multiple lines before execution.
+- [x] **Tab Completion:** `Tab` completes Arabic command names at the start of a statement and file/directory paths anywhere, quoting names with spaces.
+- [ ] **IntelliSense:** Predictive suggestions, argument completion, and executables on `PATH`.
+- [x] **Command History:** Persistent history navigated with Up/Down arrows, kept between sessions.
+- [x] **Multiline Input:** An open quote or bracket, a trailing `|`, or `Shift + Enter` continues the command on a `>>` line; newlines separate statements.
 
 #### 7.2 Advanced Scripting
 - [ ] **User Variables:** Dynamic variable creation and management.

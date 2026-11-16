@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Command History**: Up/Down recall earlier commands in ArbSh.Terminal and
+  Down past the newest restores the draft. History persists between sessions
+  in `ArbSh/history` under the user's application-data folder (one JSON string
+  per line, newest 1000, no blanks or consecutive duplicates).
+- **Tab Completion**: `Tab` completes Arabic command names at the start of a
+  statement and file or directory paths anywhere, quoting names with spaces
+  and keeping directories open for the next segment. Several matches complete
+  their common prefix or are listed.
+- **Multiline Input**: Enter on an open quote or bracket or a trailing `|`
+  continues on a `>>` line; `Shift+Enter` always does, and `Ctrl+C` drops the
+  unfinished command. The parser now treats a newline outside quotes as a
+  statement separator (except after `|` or inside brackets), so `-c` input
+  with several lines runs each line.
 - **Per-Key Input**: While a program runs in ArbSh.Terminal, keys go straight
   to it as xterm sends them: UTF-8 text, cursor keys in normal or application
   mode, Insert/Delete/PageUp/PageDown and F1-F12 with modifiers, Ctrl and Alt

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using ArbSh.Core;
+using ArbSh.Core.Hosting;
 using ArbSh.Core.Processes;
 using ArbSh.Terminal.Models;
 
@@ -19,10 +20,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _statusText = "جاهز";
     private int _liveLineCount;
     private int _liveUpdatePending;
+    private string? _pendingInput;
 
-    public MainWindowViewModel(string? initialWorkingDirectory = null)
+    public MainWindowViewModel(string? initialWorkingDirectory = null, CommandHistory? history = null)
     {
         _session = new ShellSessionState(initialWorkingDirectory);
+        History = history ?? new CommandHistory();
         _readonlyLines = new ReadOnlyObservableCollection<TerminalLine>(_lines);
         _interactiveConsole.ScreenChanged += HandleScreenChanged;
         AddLine("مرحبًا بك في أربش", TerminalLineKind.System);
@@ -37,6 +40,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ReadOnlyObservableCollection<TerminalLine> Lines => _readonlyLines;
 
     public string CurrentDirectory => _session.CurrentDirectory;
+
+    /// <summary>
+    /// سجل الأوامر المنفذة للتنقل بالسهمين.
+    /// </summary>
+    public CommandHistory History { get; }
 
     public string StatusText
     {
@@ -58,7 +66,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     /// يُعزل المسار باتجاه يسار-يمين كي لا يعيد BiDi ترتيب فواصله حول أسماء المجلدات العربية،
     /// وتتبع «>» علامة يمين-يسار كي يبقى الأمر اللاتيني المكتوب بعدها على يسارها لا ملتصقًا بالمسار.
     /// </summary>
-    public string Prompt => $"أربش {LeftToRightIsolate}{_session.CurrentDirectory}{PopDirectionalIsolate}>{RightToLeftMark} ";
+    public string Prompt => _pendingInput is null
+        ? $"أربش {LeftToRightIsolate}{_session.CurrentDirectory}{PopDirectionalIsolate}>{RightToLeftMark} "
+        : ContinuationPrompt;
+
+    /// <summary>
+    /// موجه الأسطر التالية لأمر متعدد الأسطر لم يكتمل بعد.
+    /// </summary>
+    public const string ContinuationPrompt = ">>\u200F ";
 
     /// <summary>
     /// عنوان علامة التبويب، مسبوقًا بـ«المسؤول» عند التشغيل بصلاحيات مرتفعة كما في Windows Terminal.
@@ -74,7 +89,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private const char PopDirectionalIsolate = '\u2069';
     private const char RightToLeftMark = '\u200F';
 
-    public async Task SubmitInputAsync(string logicalInput, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// ينفذ السطر المكتوب، أو يضمه إلى أمر متعدد الأسطر إذا كان ناقصًا (اقتباس أو قوس مفتوح
+    /// أو «|» في آخره) أو طلب المستخدم سطرًا آخر بـ<paramref name="continueInput"/> (Shift+Enter).
+    /// </summary>
+    public async Task SubmitInputAsync(string logicalInput, CancellationToken cancellationToken = default, bool continueInput = false)
     {
         // أثناء عمل برنامج تفاعلي يذهب السطر، ولو كان فارغًا، إلى إدخاله؛ وصداه يعود من طرفيته.
         if (_interactiveConsole.TrySendLine(logicalInput))
@@ -82,7 +101,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(logicalInput))
+        if (_pendingInput is null && string.IsNullOrWhiteSpace(logicalInput))
         {
             return;
         }
@@ -90,6 +109,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         // يبقى الأمر في السجل بعد موجهه، كما تعرضه الطرفيات المعتادة.
         AddLine(Prompt + logicalInput, TerminalLineKind.Input);
 
+        string fullInput = _pendingInput is null ? logicalInput : _pendingInput + "\n" + logicalInput;
+        _pendingInput = continueInput || Parser.IsIncomplete(fullInput) ? fullInput : null;
+        OnPropertyChanged(nameof(Prompt));
+        if (_pendingInput is not null)
+        {
+            return;
+        }
+
+        logicalInput = fullInput;
+        History.Add(Parser.ToSingleLine(logicalInput.Trim()));
         string trimmedInput = logicalInput.Trim();
         if (string.Equals(trimmedInput, ExitCommand, StringComparison.Ordinal))
         {
@@ -160,14 +189,36 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public bool SendProgramInput(string input) => _interactiveConsole.TrySendInput(input);
 
     /// <summary>
-    /// يلغي الأمر الجاري وينهي شجرة عملياته. يعيد false إذا لم يكن هناك أمر جارٍ.
+    /// يكمل الكلمة عند المؤشر، ويعرض المرشحين إذا تعددوا ولم يبق جزء مشترك يُكمل.
+    /// </summary>
+    public CompletionResult Complete(string input, int caret)
+    {
+        CompletionResult result = TabCompletion.Complete(input, caret, _session.CurrentDirectory);
+        if (result.Candidates.Count > 0 && result.Text == input)
+        {
+            AddLine(string.Join("    ", result.Candidates), TerminalLineKind.System);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// يلغي الأمر الجاري وينهي شجرة عملياته، أو يتخلى عن أمر متعدد الأسطر لم يكتمل.
+    /// يعيد false إذا لم يكن هناك ما يُلغى.
     /// </summary>
     public bool CancelExecution()
     {
         CancellationTokenSource? execution = _activeExecution;
         if (execution is null)
         {
-            return false;
+            if (_pendingInput is null)
+            {
+                return false;
+            }
+
+            _pendingInput = null;
+            OnPropertyChanged(nameof(Prompt));
+            return true;
         }
 
         execution.Cancel();

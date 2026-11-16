@@ -38,6 +38,7 @@ namespace ArbSh.Core
         /// <returns>A list where each element is a list of ParsedCommand objects representing a single statement's pipeline.</returns>
         public static List<List<ParsedCommand>> Parse(string inputLine)
         {
+            inputLine = ToSingleLine(inputLine);
             CoreConsole.WriteLine($"DEBUG (Parser): Parsing '{inputLine}'...");
             var allStatementsCommands = new List<List<ParsedCommand>>();
             var statementBuilder = new StringBuilder();
@@ -125,6 +126,104 @@ namespace ArbSh.Core
 
             CoreConsole.WriteLine($"DEBUG (Parser): Parsed into {allStatementsCommands.Count} statement(s).");
             return allStatementsCommands;
+        }
+
+        /// <summary>
+        /// يحوّل إدخالًا متعدد الأسطر إلى سطر واحد مكافئ: السطر الجديد خارج الاقتباس يفصل الجمل
+        /// كـ«;»، إلا بعد «|» أو داخل قوسين حيث يكمل الجملة نفسها؛ ويسقط التعليق حتى نهاية سطره.
+        /// </summary>
+        public static string ToSingleLine(string input)
+        {
+            ArgumentNullException.ThrowIfNull(input);
+            return input.Contains('\n') ? Scan(input, out _) : input;
+        }
+
+        /// <summary>
+        /// هل الإدخال ناقص ينتظر سطرًا آخر: اقتباس أو قوس لم يُغلق، أو «|» في آخره.
+        /// </summary>
+        public static bool IsIncomplete(string input)
+        {
+            ArgumentNullException.ThrowIfNull(input);
+            Scan(input, out bool incomplete);
+            return incomplete;
+        }
+
+        // يتبع قواعد Parse نفسها للاقتباس والهروب والتعليق كي يتفق الحكم مع التنفيذ.
+        private static string Scan(string input, out bool incomplete)
+        {
+            var result = new StringBuilder(input.Length);
+            bool inDoubleQuotes = false;
+            bool inSingleQuotes = false;
+            int depth = 0;
+            char last = '\0';
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+                bool quoted = inDoubleQuotes || inSingleQuotes;
+
+                if (!quoted && c == '#')
+                {
+                    int end = input.IndexOf('\n', i);
+                    if (end < 0)
+                    {
+                        break;
+                    }
+
+                    i = end - 1;
+                    continue;
+                }
+
+                if (!quoted && c == '\r' && i + 1 < input.Length && input[i + 1] == '\n')
+                {
+                    continue;
+                }
+
+                if (!quoted && c == '\n')
+                {
+                    bool continues = depth > 0 || last is '\0' or '|' or ';';
+                    result.Append(continues ? " " : "; ");
+                    if (!continues)
+                    {
+                        last = ';';
+                    }
+
+                    continue;
+                }
+
+                if (c == '\\' && !inSingleQuotes && i + 1 < input.Length)
+                {
+                    result.Append(c).Append(input[++i]);
+                    last = input[i];
+                    continue;
+                }
+
+                if (c == '"' && !inSingleQuotes)
+                {
+                    inDoubleQuotes = !inDoubleQuotes;
+                }
+                else if (c == '\'' && !inDoubleQuotes)
+                {
+                    inSingleQuotes = !inSingleQuotes;
+                }
+                else if (!quoted && c == '(')
+                {
+                    depth++;
+                }
+                else if (!quoted && c == ')' && depth > 0)
+                {
+                    depth--;
+                }
+
+                result.Append(c);
+                if (!char.IsWhiteSpace(c))
+                {
+                    last = c;
+                }
+            }
+
+            incomplete = inDoubleQuotes || inSingleQuotes || depth > 0 || last == '|';
+            return result.ToString();
         }
 
         /// <summary>
