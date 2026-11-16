@@ -5,21 +5,37 @@ namespace ArbSh.Test;
 
 public class VtScreenTests
 {
-    private static (VtScreen Screen, List<string> Committed) Feed(string text, int columns = 20, int rows = 5)
+    private static (VtScreen Screen, List<string> Committed) Feed(string text, int columns = 20, int rows = 5, bool finish = false)
     {
         var screen = new VtScreen(columns, rows);
         var committed = new List<string>();
         screen.Write(text, committed);
+        if (finish)
+        {
+            screen.Finish(committed);
+        }
+
         return (screen, committed);
     }
 
     [Fact]
-    public void LineFeed_CommitsTheFinishedLineAndKeepsThePromptLive()
+    public void LineFeed_KeepsRowsLiveWhileTheyAreOnScreen()
     {
         var (screen, committed) = Feed("سطر أول\r\nاسمك؟ ");
 
-        Assert.Equal(["سطر أول"], committed);
-        Assert.Equal(["اسمك؟ "], screen.GetLiveLines());
+        Assert.Empty(committed);
+        Assert.Equal(["سطر أول", "اسمك؟ "], screen.GetLiveLines());
+    }
+
+    [Fact]
+    public void Repaint_AfterLineFeeds_CanStillRewriteEarlierRows()
+    {
+        // ConPTY يعيد رسم الشاشة كلها بعد تغيير الحجم ثم يعيد المؤشر إلى صف سابق.
+        var (_, committed) = Feed(
+            "أ\r\nسؤال؟ \u001b[Hأ\u001b[K\r\nسؤال؟\u001b[K\r\n\u001b[K\r\n\u001b[K\u001b[3;1Hجواب\r\n",
+            finish: true);
+
+        Assert.Equal(["أ", "سؤال؟", "جواب"], committed);
     }
 
     [Fact]
@@ -27,15 +43,15 @@ public class VtScreenTests
     {
         var (screen, committed) = Feed("10%\r50%\r100%\r\n");
 
-        Assert.Equal(["100%"], committed);
+        Assert.Empty(committed);
         // يبقى سطر المؤشر الفارغ حيًّا: فيه يكتب المستخدم وصداه.
-        Assert.Equal([string.Empty], screen.GetLiveLines());
+        Assert.Equal(["100%", string.Empty], screen.GetLiveLines());
     }
 
     [Fact]
     public void EraseLineAndBackspace_EditTheCurrentLine()
     {
-        var (_, committed) = Feed("abcdef\b\b\u001b[K!\r\n");
+        var (_, committed) = Feed("abcdef\b\b\u001b[K!\r\n", finish: true);
 
         Assert.Equal(["abcd!"], committed);
     }
@@ -48,6 +64,7 @@ public class VtScreenTests
         screen.Write("abc\u001b[", committed);
         screen.Write("2D", committed);
         screen.Write("Z\r\n", committed);
+        screen.Finish(committed);
 
         Assert.Equal(["aZc"], committed);
     }
@@ -55,7 +72,7 @@ public class VtScreenTests
     [Fact]
     public void AutoWrap_KeepsOneLogicalLine()
     {
-        var (_, committed) = Feed("0123456789abc\r\n", columns: 10);
+        var (_, committed) = Feed("0123456789abc\r\n", columns: 10, finish: true);
 
         Assert.Equal(["0123456789abc"], committed);
     }
@@ -65,8 +82,11 @@ public class VtScreenTests
     {
         var (screen, committed) = Feed("1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7", rows: 3);
 
-        Assert.Equal(["1", "2", "3", "4", "5", "6"], committed);
-        Assert.Equal(["7"], screen.GetLiveLines());
+        Assert.Equal(["1", "2", "3", "4"], committed);
+        Assert.Equal(["5", "6", "7"], screen.GetLiveLines());
+
+        screen.Finish(committed);
+        Assert.Equal(["1", "2", "3", "4", "5", "6", "7"], committed);
     }
 
     [Fact]
@@ -80,7 +100,7 @@ public class VtScreenTests
     [Fact]
     public void Colors_AreKeptAsSgrAndStripStylesRemovesThem()
     {
-        var (_, committed) = Feed("\u001b[1;31mأحمر\u001b[0m عادي\r\n");
+        var (_, committed) = Feed("\u001b[1;31mأحمر\u001b[0m عادي\r\n", finish: true);
 
         string line = Assert.Single(committed);
         Assert.Equal("\u001b[0;1;31mأحمر\u001b[0m عادي", line);
@@ -90,7 +110,7 @@ public class VtScreenTests
     [Fact]
     public void ExtendedColors_SurviveTheRoundTrip()
     {
-        var (_, committed) = Feed("\u001b[38;5;208mo\u001b[48;2;1;2;3mb\u001b[m\r\n");
+        var (_, committed) = Feed("\u001b[38;5;208mo\u001b[48;2;1;2;3mb\u001b[m\r\n", finish: true);
 
         Assert.Equal("\u001b[0;38;5;208mo\u001b[0;38;5;208;48;2;1;2;3mb\u001b[0m", Assert.Single(committed));
     }
@@ -124,7 +144,7 @@ public class VtScreenTests
     }
 
     [Fact]
-    public void ClearScreen_MakesTheWholeScreenLiveAgain()
+    public void ClearScreen_PushesTheScreenToTheScrollbackFirst()
     {
         var (screen, committed) = Feed("قديم\r\n\u001b[H\u001b[2Jجديد");
 
@@ -146,8 +166,9 @@ public class VtScreenTests
     {
         var (screen, committed) = Feed("\u001b[2J\u001b[2;3r\u001b[1;1Hرأس\u001b[2;1Ha\r\nb\r\nc", rows: 4);
 
-        Assert.Equal(["رأس", "a", "b"], committed);
-        Assert.Equal(["c"], screen.GetLiveLines());
+        // الصف الخارج من المنطقة يُسلَّم، ويبقى الرأس الثابت حيًّا.
+        Assert.Equal(["a"], committed);
+        Assert.Equal(["رأس", "b", "c"], screen.GetLiveLines());
     }
 
     [Fact]
@@ -223,7 +244,7 @@ public class VtScreenTests
     [Fact]
     public void OperatingSystemCommands_AreIgnored()
     {
-        var (_, committed) = Feed("\u001b]0;عنوان\u0007نص\u001b]2;x\u001b\\\r\n");
+        var (_, committed) = Feed("\u001b]0;عنوان\u0007نص\u001b]2;x\u001b\\\r\n", finish: true);
 
         Assert.Equal(["نص"], committed);
     }
@@ -232,15 +253,15 @@ public class VtScreenTests
     public void Resize_KeepsTheCursorVisibleAndCommitsRowsPushedOff()
     {
         var (screen, committed) = Feed("1\r\n2\r\n3\r\n4\r\n5", rows: 5);
-        Assert.Equal(["1", "2", "3", "4"], committed);
+        Assert.Empty(committed);
 
         screen.Resize(20, 2, committed);
         screen.Write("6", committed);
 
         Assert.Equal(2, screen.Rows);
         Assert.Equal(1, screen.CursorRow);
-        Assert.Equal(["56"], screen.GetLiveLines());
-        Assert.Equal(["1", "2", "3", "4"], committed);
+        Assert.Equal(["4", "56"], screen.GetLiveLines());
+        Assert.Equal(["1", "2", "3"], committed);
     }
 
     [Fact]

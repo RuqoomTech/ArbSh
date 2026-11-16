@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Output After Resize**: A row of an interactive program's screen now stays
+  live while it is on screen and moves to the scrollback only when it scrolls
+  off the top, before a full-screen clear, or when the program ends. Before,
+  ConPTY's repaint after a window resize committed blank rows and the
+  program's next output landed on a committed row and was lost.
+
 ### Added
 - **Command History**: Up/Down recall earlier commands in ArbSh.Terminal and
   Down past the newest restores the draft. History persists between sessions

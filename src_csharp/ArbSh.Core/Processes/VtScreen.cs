@@ -447,7 +447,7 @@ public sealed class VtScreen
                 _column = Math.Clamp(At(1, 1) - 1, 0, Columns - 1);
                 break;
             case 'J':
-                EraseDisplay(parameters.Length > 0 ? parameters[0] : 0);
+                EraseDisplay(parameters.Length > 0 ? parameters[0] : 0, committed);
                 break;
             case 'K':
                 EraseLine(parameters.Length > 0 ? parameters[0] : 0);
@@ -621,19 +621,14 @@ public sealed class VtScreen
     }
 
     /// <summary>
-    /// ينقل المؤشر سطرًا لأسفل ويمرر عند قاع المنطقة. السطر الجديد الصريح في الشاشة الأساسية
-    /// يسلّم الأسطر الحية حتى سطر المؤشر؛ أما اللف التلقائي فيبقي السطر المنطقي حيًّا.
+    /// ينقل المؤشر سطرًا لأسفل ويمرر عند قاع المنطقة. يبقى الصف حيًّا ما دام على الشاشة، لأن
+    /// البرنامج قد يعود إليه (ConPTY يعيد رسم الشاشة كلها بعد تغيير الحجم)؛ يُسلَّم حين يخرج بالتمرير.
     /// </summary>
     private void LineFeed(List<string> committed, bool commit)
     {
         if (commit)
         {
             _pendingWrap = false;
-            if (_alternate is null && _row >= _firstLiveRow)
-            {
-                CommitRows(_firstLiveRow, _row, committed);
-                _firstLiveRow = _row + 1;
-            }
         }
 
         if (_row == _scrollBottom)
@@ -704,7 +699,7 @@ public sealed class VtScreen
         }
     }
 
-    private void EraseDisplay(int mode)
+    private void EraseDisplay(int mode, List<string> committed)
     {
         switch (mode)
         {
@@ -725,15 +720,16 @@ public sealed class VtScreen
                 ClearCells(_row, 0, _column + 1);
                 break;
             case 2 or 3:
+                // كما في Windows Terminal: يُدفع محتوى الشاشة الأساسية إلى السجل قبل مسحها.
+                if (_alternate is null)
+                {
+                    CommitRows(_firstLiveRow, LastContentRow(), committed);
+                    _firstLiveRow = 0;
+                }
+
                 for (int row = 0; row < Rows; row++)
                 {
                     ClearRow(row);
-                }
-
-                // ما قبل المسح سُلِّم بالفعل؛ الشاشة الفارغة كلها حية من جديد.
-                if (_alternate is null)
-                {
-                    _firstLiveRow = 0;
                 }
 
                 break;

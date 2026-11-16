@@ -74,10 +74,20 @@ internal static class Program
     private static int ConsoleSize()
     {
         // يطبع حجم طرفيته، وينتظر سطرًا يغير المضيف الحجم قبله، ثم يطبع الحجم الجديد.
-        Console.Out.WriteLine($"size={Console.WindowWidth}x{Console.WindowHeight}");
+        string before = $"size={Console.WindowWidth}x{Console.WindowHeight}";
+        Console.Out.WriteLine(before);
         Console.Out.Write("غيّر الحجم؟ ");
         Console.In.ReadLine();
-        Console.Out.WriteLine($"size={Console.WindowWidth}x{Console.WindowHeight}");
+
+        // على Linux يحدّث .NET الحجم عند معالجة SIGWINCH في خيط آخر، فقد يسبقه السطر.
+        string after = before;
+        for (int attempt = 0; attempt < 40 && after == before; attempt++)
+        {
+            Thread.Sleep(50);
+            after = $"size={Console.WindowWidth}x{Console.WindowHeight}";
+        }
+
+        Console.Out.WriteLine(after);
         return 0;
     }
 
