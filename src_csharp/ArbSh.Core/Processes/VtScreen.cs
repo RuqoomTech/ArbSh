@@ -29,6 +29,9 @@ public sealed class VtScreen
     private int _scrollBottom;
     private int _firstLiveRow;
     private bool _autoWrap = true;
+    private bool _applicationCursorKeys;
+    private bool _bracketedPaste;
+    private bool _cursorVisible = true;
     private (int Row, int Column, string Style) _saved;
     private (int Row, int Column, string Style) _primarySaved;
     private string _style = string.Empty;
@@ -66,6 +69,12 @@ public sealed class VtScreen
     public int CursorRow => _row;
 
     public int CursorColumn => _column;
+
+    /// <summary>طلب البرنامج مفاتيح المؤشر بصيغة التطبيق (<c>ESC O A</c>) بدل <c>ESC [ A</c>.</summary>
+    public bool ApplicationCursorKeys => _applicationCursorKeys;
+
+    /// <summary>طلب البرنامج إحاطة النص الملصق بـ<c>ESC [200~</c> و<c>ESC [201~</c>.</summary>
+    public bool BracketedPaste => _bracketedPaste;
 
     private Cell[][] Grid => _alternate ?? _primary;
 
@@ -204,24 +213,41 @@ public sealed class VtScreen
     }
 
     /// <summary>
-    /// الأسطر الحية الظاهرة الآن: في الشاشة الأساسية ما تحت آخر سطر سُلِّم بلا أسطر فارغة ذيلية،
+    /// الأسطر الحية الظاهرة الآن: في الشاشة الأساسية ما تحت آخر سطر سُلِّم حتى آخر محتوى أو سطر المؤشر،
     /// وفي الشاشة البديلة كل صفوفها.
     /// </summary>
-    public IReadOnlyList<string> GetLiveLines()
+    public IReadOnlyList<string> GetLiveLines() => GetLiveView().Lines;
+
+    /// <summary>
+    /// الأسطر الحية مع موضع المؤشر فيها: رقم السطر الحي وموضعه في نصه بلا تسلسلات،
+    /// أو سطر -1 إذا أخفاه البرنامج أو لم يكن على سطر حي.
+    /// </summary>
+    public VtLiveView GetLiveView()
     {
         var lines = new List<string>();
+        int cursorLine = -1;
+        int cursorIndex = 0;
         if (_alternate is not null)
         {
             for (int row = 0; row < Rows; row++)
             {
-                lines.Add(RowText(_alternate[row], styled: true));
-            }
+                bool cursorRow = row == _row;
+                if (cursorRow)
+                {
+                    cursorLine = row;
+                    cursorIndex = PlainLength(_alternate[row], _column);
+                }
 
-            return lines;
+                lines.Add(RowText(_alternate[row], styled: true, keep: cursorRow ? _column : 0));
+            }
+        }
+        else
+        {
+            int last = Math.Max(LastContentRow(), _row >= _firstLiveRow ? _row : -1);
+            (cursorLine, cursorIndex) = AppendLogicalLines(_firstLiveRow, last, lines, cursorRow: _row);
         }
 
-        AppendLogicalLines(_firstLiveRow, LastContentRow(), lines);
-        return lines;
+        return new VtLiveView(lines, _cursorVisible ? cursorLine : -1, cursorIndex, _applicationCursorKeys, _bracketedPaste);
     }
 
     /// <summary>
@@ -519,8 +545,17 @@ public sealed class VtScreen
         {
             switch (mode)
             {
+                case 1:
+                    _applicationCursorKeys = enable;
+                    break;
                 case 7:
                     _autoWrap = enable;
+                    break;
+                case 25:
+                    _cursorVisible = enable;
+                    break;
+                case 2004:
+                    _bracketedPaste = enable;
                     break;
                 case 47 or 1047 or 1049:
                     if (enable && _alternate is null)
@@ -576,6 +611,9 @@ public sealed class VtScreen
         _firstLiveRow = 0;
         _pendingWrap = false;
         _autoWrap = true;
+        _applicationCursorKeys = false;
+        _bracketedPaste = false;
+        _cursorVisible = true;
         _style = string.Empty;
         _sgr = new SgrState();
         _scrollTop = 0;
@@ -769,26 +807,53 @@ public sealed class VtScreen
         }
     }
 
-    private void AppendLogicalLines(int from, int to, List<string> lines)
+    /// <summary>
+    /// يضم الصفوف الملفوفة أسطرًا منطقية، ويعيد موضع المؤشر إن وقع صفه في المدى.
+    /// </summary>
+    private (int Line, int Index) AppendLogicalLines(int from, int to, List<string> lines, int cursorRow = -1)
     {
         var line = new StringBuilder();
+        int plainLength = 0;
+        (int Line, int Index) cursor = (-1, 0);
         for (int row = Math.Max(0, from); row <= to && row < Rows; row++)
         {
-            line.Append(RowText(_primary[row], styled: true, trimEnd: !_primaryWrapped[row]));
+            bool isCursorRow = row == cursorRow;
+            if (isCursorRow)
+            {
+                cursor = (lines.Count, plainLength + PlainLength(_primary[row], _column));
+            }
+
+            string text = RowText(_primary[row], styled: true, trimEnd: !_primaryWrapped[row], keep: isCursorRow ? _column : 0);
+            line.Append(text);
+            plainLength += StripStyles(text).Length;
             if (!_primaryWrapped[row] || row == to)
             {
                 lines.Add(line.ToString());
                 line.Clear();
+                plainLength = 0;
             }
         }
+
+        return cursor;
     }
 
-    private static string RowText(Cell[] row, bool styled, bool trimEnd = true)
+    private static int PlainLength(Cell[] row, int columns)
+    {
+        int length = 0;
+        for (int column = 0; column < columns && column < row.Length; column++)
+        {
+            length += Math.Max(1, row[column].Text.Length);
+        }
+
+        return length;
+    }
+
+    private static string RowText(Cell[] row, bool styled, bool trimEnd = true, int keep = 0)
     {
         int end = row.Length;
         if (trimEnd)
         {
-            while (end > 0 && row[end - 1].IsBlank)
+            while (end > keep && row[end - 1].IsBlank)
             {
                 end--;
             }
@@ -979,4 +1044,17 @@ public sealed class VtScreen
             _background = null;
         }
     }
+}
+
+/// <summary>
+/// لقطة الشاشة الحية: أسطرها (بتسلسلات SGR) وموضع المؤشر في نص سطره بلا تسلسلات.
+/// </summary>
+public sealed record VtLiveView(
+    IReadOnlyList<string> Lines,
+    int CursorLine,
+    int CursorIndex,
+    bool ApplicationCursorKeys = false,
+    bool BracketedPaste = false)
+{
+    public static VtLiveView Empty { get; } = new([], -1, 0);
 }

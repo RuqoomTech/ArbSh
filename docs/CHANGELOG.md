@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Per-Key Input**: While a program runs in ArbSh.Terminal, keys go straight
+  to it as xterm sends them: UTF-8 text, cursor keys in normal or application
+  mode, Insert/Delete/PageUp/PageDown and F1-F12 with modifiers, Ctrl and Alt
+  combinations, and bracketed paste. `Ctrl+C` now reaches the program as an
+  interrupt; `Ctrl+Break` force-stops the command tree, `Ctrl+C` with a
+  selection still copies, and Shift+PageUp/PageDown scroll. The program's own
+  cursor is drawn on its live line.
+- **Interactive External Commands**: A plain external command in the
+  foreground (no pipes, redirection, or piped input) now runs in the pseudo
+  terminal, so REPLs, pagers, and full-screen programs work from the prompt.
 - **VT Screen Grid**: Programs run by `تشغيل` in ArbSh.Terminal now draw
   through a VT screen model: cursor movement, erase, insert/delete, scroll
   regions, 16/256/true-color SGR, the alternate screen, and cursor-position

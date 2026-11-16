@@ -140,6 +140,26 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public void ResizeTerminal(int columns, int rows) => _interactiveConsole.Resize(columns, rows);
 
     /// <summary>
+    /// هل يعمل برنامج في الطرفية الزائفة الآن؟ عندها تذهب المفاتيح إليه مباشرة لا إلى سطر أربش.
+    /// </summary>
+    public bool IsProgramAttached => _interactiveConsole.IsAttached;
+
+    /// <summary>
+    /// آخر لقطة للشاشة الحية: مؤشر البرنامج وأوضاع إدخاله.
+    /// </summary>
+    public VtLiveView LiveView { get; private set; } = VtLiveView.Empty;
+
+    /// <summary>
+    /// موضع أول سطر حي في <see cref="Lines"/>؛ يضاف إليه سطر المؤشر في <see cref="LiveView"/>.
+    /// </summary>
+    public int LiveLineStart => _lines.Count - _liveLineCount;
+
+    /// <summary>
+    /// يرسل نصًا أو تسلسل مفتاح إلى البرنامج الجاري كما هو.
+    /// </summary>
+    public bool SendProgramInput(string input) => _interactiveConsole.TrySendInput(input);
+
+    /// <summary>
     /// يلغي الأمر الجاري وينهي شجرة عملياته. يعيد false إذا لم يكن هناك أمر جارٍ.
     /// </summary>
     public bool CancelExecution()
@@ -184,7 +204,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private void UpdateLiveLines()
     {
         Volatile.Write(ref _liveUpdatePending, 0);
-        IReadOnlyList<string> live = _interactiveConsole.GetLiveLines();
+        VtLiveView view = _interactiveConsole.GetLiveView();
+        IReadOnlyList<string> live = view.Lines;
+        LiveView = view;
         for (; _liveLineCount > 0; _liveLineCount--)
         {
             _lines.RemoveAt(_lines.Count - 1);

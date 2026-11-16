@@ -374,6 +374,33 @@ public sealed class EcoRunTests
     }
 
     [Fact]
+    public void ExecuteInput_PlainExternalCommand_RunsInTheTerminalUnlessRedirected()
+    {
+        string root = CreateTempDirectory();
+        var runner = new InteractiveRecordingRunner();
+        var session = new ShellSessionState(root);
+        var options = new ExecutionOptions { InteractiveConsole = new InteractiveConsole() };
+
+        try
+        {
+            ShellEngine.ExecuteInput("برنامج-خارجي وسيط", new CaptureSink(), options, session, runner);
+
+            ExternalProcessRequest interactive = Assert.Single(runner.Interactive);
+            Assert.Equal("برنامج-خارجي", interactive.Executable);
+            Assert.Equal(["وسيط"], interactive.Arguments);
+            Assert.Equal(7, session.LastExitCode);
+
+            ShellEngine.ExecuteInput("برنامج-خارجي > ناتج.txt", new CaptureSink(), options, session, runner);
+            Assert.Single(runner.Interactive);
+            Assert.Single(runner.Piped);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ExecuteInput_RedirectedRun_StaysOnPipesDespiteInteractiveConsole()
     {
         string root = CreateTempDirectory();

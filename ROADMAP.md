@@ -110,7 +110,8 @@ ArbSh aims to be the premier Arabic-first shell environment and the ultimate com
 - [x] **Interactive Foreground Run (Windows):** `تشغيل` runs the user's program inside a ConPTY pseudo console in ArbSh.Terminal with incremental line input, UTF-8 code page, Job Object ownership, and `Ctrl + C` cancellation.
 - [x] **Interactive Foreground Run (Linux):** The same `تشغيل` flow runs in a POSIX pseudo-terminal; `posix_spawn` starts the program in its own session with the PTY as its controlling terminal, so process-group ownership and cancellation match the pipe path.
 - [x] **VT Screen Grid and Resize:** Interactive output runs through a VT screen grid (cursor control, erase, scroll regions, SGR colors, alternate screen); finished lines move to the scrollback with their colors while prompts, progress bars, and full-screen screens stay live, and ConPTY/PTY follow the terminal window size.
-- [ ] **Interactive Stream Handling:** Add per-key input for interactive programs, interactive plain external commands, control signals, and background-job flow.
+- [x] **Per-Key Input and Interactive Commands:** While a program runs, ArbSh.Terminal sends each key as xterm would (UTF-8 text, cursor keys in normal or application mode, editing and function keys with modifiers, control characters, bracketed paste) and draws the program's cursor; plain foreground external commands run in the pseudo terminal like `تشغيل`.
+- [ ] **Background Jobs:** Add background-job flow with tree ownership and cancellation.
 - [x] **Arabic Path Support:** Preserve Arabic working directories, executable/argument paths, spaces, and empty arguments when launching external tools.
 - [x] **Structured Process Core:** Added reusable immutable request/result contracts, UTF-8 stream capture, exit/failure classification, and cancellation.
 - [x] **Structured Launch:** Build non-interactive external processes from argv/cwd/environment instead of concatenated shell command strings.

@@ -268,7 +268,8 @@ namespace ArbSh.Core
                                             ? ExternalProcessInputMode.Closed
                                             : ExternalProcessInputMode.Text,
                                         standardInputText: standardInput);
-                                    steps = [new EcoRunStep(request, currentCommand.CommandName)];
+                                    // أمر خارجي عادي هو برنامج المستخدم نفسه؛ يستحق الطرفية التفاعلية مثل خطوة تشغيل.
+                                    steps = [new EcoRunStep(request, currentCommand.CommandName, Interactive: true)];
                                 }
 
                                 // الطرفية التفاعلية للأمر الأمامي وحده: بلا أنابيب ولا إعادة توجيه ولا إدخال مسبق.

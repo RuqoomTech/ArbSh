@@ -19,7 +19,7 @@ public class VtScreenTests
         var (screen, committed) = Feed("سطر أول\r\nاسمك؟ ");
 
         Assert.Equal(["سطر أول"], committed);
-        Assert.Equal(["اسمك؟"], screen.GetLiveLines());
+        Assert.Equal(["اسمك؟ "], screen.GetLiveLines());
     }
 
     [Fact]
@@ -28,7 +28,8 @@ public class VtScreenTests
         var (screen, committed) = Feed("10%\r50%\r100%\r\n");
 
         Assert.Equal(["100%"], committed);
-        Assert.Empty(screen.GetLiveLines());
+        // يبقى سطر المؤشر الفارغ حيًّا: فيه يكتب المستخدم وصداه.
+        Assert.Equal([string.Empty], screen.GetLiveLines());
     }
 
     [Fact]
@@ -157,6 +158,56 @@ public class VtScreenTests
 
         Assert.Equal(["أ", "ب"], committed);
         Assert.Empty(screen.GetLiveLines());
+    }
+
+    [Fact]
+    public void LiveView_PlacesTheCursorInTheLinesPlainText()
+    {
+        var (screen, _) = Feed("\u001b[32mاسمك؟\u001b[0m مَر");
+
+        VtLiveView view = screen.GetLiveView();
+        Assert.Equal(0, view.CursorLine);
+        // «اسمك؟ مَر» بلا تسلسلات: علامة التشكيل تزيد النص حرفًا ولا تزيد الخلايا.
+        Assert.Equal("اسمك؟ مَر".Length, view.CursorIndex);
+    }
+
+    [Fact]
+    public void LiveView_KeepsBlankCellsBeforeTheCursor()
+    {
+        var (screen, _) = Feed("ab\u001b[5G");
+
+        VtLiveView view = screen.GetLiveView();
+        Assert.Equal(["ab  "], view.Lines);
+        Assert.Equal(4, view.CursorIndex);
+    }
+
+    [Fact]
+    public void LiveView_CountsWrappedRowsIntoOneLine()
+    {
+        var (screen, _) = Feed("0123456789ab", columns: 10);
+
+        VtLiveView view = screen.GetLiveView();
+        Assert.Equal(["0123456789ab"], view.Lines);
+        Assert.Equal(0, view.CursorLine);
+        Assert.Equal(12, view.CursorIndex);
+    }
+
+    [Fact]
+    public void InputModes_FollowTheProgramsRequests()
+    {
+        var screen = new VtScreen(20, 5);
+        screen.Write("\u001b[?1h\u001b[?2004h\u001b[?25l", []);
+
+        VtLiveView view = screen.GetLiveView();
+        Assert.True(view.ApplicationCursorKeys);
+        Assert.True(view.BracketedPaste);
+        Assert.Equal(-1, view.CursorLine);
+
+        screen.Write("\u001b[?1l\u001b[?2004l\u001b[?25h", []);
+        view = screen.GetLiveView();
+        Assert.False(view.ApplicationCursorKeys);
+        Assert.False(view.BracketedPaste);
+        Assert.Equal(0, view.CursorLine);
     }
 
     [Fact]

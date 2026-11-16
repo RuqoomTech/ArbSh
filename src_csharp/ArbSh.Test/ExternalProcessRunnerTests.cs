@@ -566,6 +566,40 @@ public sealed class ExternalProcessRunnerTests
         Assert.Contains(sink.Chunks, chunk => chunk.Text.Contains("\u001b[0;31mأحمر", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task RunInteractiveAsync_DeliversSingleKeysWithoutEnter()
+    {
+        if (!new SystemExternalProcessRunner().SupportsInteractive)
+        {
+            return;
+        }
+
+        using var fixture = FixtureCopy.Create();
+        var runner = new SystemExternalProcessRunner();
+        var console = new InteractiveConsole();
+        // يرمّز المفاتيح كما ترمّزها الواجهة، بوضع مفاتيح المؤشر الذي طلبه البرنامج.
+        WhenScreenShows(console, "مفاتيح؟", () =>
+        {
+            bool application = console.GetLiveView().ApplicationCursorKeys;
+            console.TrySendInput(ArbSh.Terminal.Input.TerminalKeyEncoder.Encode(
+                Avalonia.Input.Key.Up, Avalonia.Input.KeyModifiers.None, application)!);
+            console.TrySendInput(ArbSh.Terminal.Input.TerminalKeyEncoder.Encode(
+                Avalonia.Input.Key.Left, Avalonia.Input.KeyModifiers.None, application)!);
+            console.TrySendInput("x");
+        });
+        var request = new ExternalProcessRequest(
+            ResolveDotNetHost(),
+            [fixture.AssemblyPath, "read-keys"],
+            fixture.RootDirectory);
+
+        ExternalProcessResult result = await runner
+            .RunInteractiveAsync(request, console, new RecordingOutputSink())
+            .WaitAsync(TimeSpan.FromSeconds(60));
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("keys=UpArrow,LeftArrow,x", result.StandardOutput, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// ينفذ الإجراء مرة واحدة حين يظهر النص على الشاشة الحية للطرفية.
     /// </summary>

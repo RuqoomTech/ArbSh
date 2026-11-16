@@ -29,6 +29,11 @@ internal static class Program
             return VtScreen();
         }
 
+        if (arguments is ["read-keys"])
+        {
+            return ReadKeys();
+        }
+
         Console.InputEncoding = Encoding.UTF8;
         Console.OutputEncoding = Encoding.UTF8;
 
@@ -73,6 +78,22 @@ internal static class Program
         Console.Out.Write("غيّر الحجم؟ ");
         Console.In.ReadLine();
         Console.Out.WriteLine($"size={Console.WindowWidth}x{Console.WindowHeight}");
+        return 0;
+    }
+
+    private static int ReadKeys()
+    {
+        // يقرأ مفاتيح منفردة دون انتظار Enter، كما يفعل محرر أو قائمة تفاعلية.
+        Console.Out.Write("مفاتيح؟ ");
+        var keys = new List<string>();
+        for (int index = 0; index < 3; index++)
+        {
+            ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+            keys.Add(key.KeyChar is >= 'a' and <= 'z' ? key.KeyChar.ToString() : key.Key.ToString());
+        }
+
+        Console.Out.WriteLine();
+        Console.Out.WriteLine("keys=" + string.Join(',', keys));
         return 0;
     }
 

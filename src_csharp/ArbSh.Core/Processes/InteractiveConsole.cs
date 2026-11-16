@@ -80,6 +80,29 @@ public sealed class InteractiveConsole
     }
 
     /// <summary>
+    /// يرسل إدخالًا خامًا كما تولده لوحة المفاتيح (نصًا أو تسلسل مفتاح VT) إلى العملية الأمامية.
+    /// </summary>
+    /// <returns>false إذا لم توجد عملية تفاعلية تستقبله.</returns>
+    public bool TrySendInput(string input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+
+        Session? session;
+        lock (_sync)
+        {
+            session = _session;
+        }
+
+        if (session is null || input.Length == 0)
+        {
+            return session is not null;
+        }
+
+        session.WriteInput(input);
+        return true;
+    }
+
+    /// <summary>
     /// يضبط حجم الطرفية بالأعمدة والصفوف، ويغير حجم الطرفية الزائفة الجارية إن وجدت.
     /// </summary>
     public void Resize(int columns, int rows)
@@ -108,7 +131,12 @@ public sealed class InteractiveConsole
     /// <summary>
     /// الأسطر الحية للعملية الأمامية (بتسلسلات SGR إن كانت ملونة)، أو قائمة فارغة إن لم توجد.
     /// </summary>
-    public IReadOnlyList<string> GetLiveLines()
+    public IReadOnlyList<string> GetLiveLines() => GetLiveView().Lines;
+
+    /// <summary>
+    /// الأسطر الحية مع مؤشر البرنامج وأوضاع إدخاله، أو لقطة فارغة إن لم توجد عملية.
+    /// </summary>
+    public VtLiveView GetLiveView()
     {
         Session? session;
         lock (_sync)
@@ -116,7 +144,7 @@ public sealed class InteractiveConsole
             session = _session;
         }
 
-        return session?.GetLiveLines() ?? [];
+        return session?.GetLiveView() ?? VtLiveView.Empty;
     }
 
     internal Session Attach(Action<string> writeInput, Action<int, int> resizeTerminal)
@@ -227,11 +255,11 @@ public sealed class InteractiveConsole
             return true;
         }
 
-        public IReadOnlyList<string> GetLiveLines()
+        public VtLiveView GetLiveView()
         {
             lock (_screenSync)
             {
-                return _screen.GetLiveLines();
+                return _screen.GetLiveView();
             }
         }
 

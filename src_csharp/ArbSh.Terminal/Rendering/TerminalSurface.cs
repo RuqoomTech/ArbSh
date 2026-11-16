@@ -5,6 +5,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using ArbSh.Core.I18n;
+using ArbSh.Core.Processes;
 using ArbSh.Terminal.Input;
 using ArbSh.Terminal.Models;
 using ArbSh.Terminal.ViewModels;
@@ -196,6 +197,14 @@ public sealed class TerminalSurface : Control
             return;
         }
 
+        // أثناء عمل برنامج يذهب النص إليه، وصداه يعود من طرفيته.
+        if (_viewModel?.SendProgramInput(e.Text) == true)
+        {
+            _scrollbackOffsetLines = 0;
+            e.Handled = true;
+            return;
+        }
+
         _outputSelection.Clear();
         _inputBuffer.InsertText(e.Text);
         _scrollbackOffsetLines = 0;
@@ -209,6 +218,11 @@ public sealed class TerminalSurface : Control
 
         bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+        if (_viewModel?.IsProgramAttached == true && await HandleProgramKeyAsync(e, ctrl, shift))
+        {
+            return;
+        }
 
         if (ctrl)
         {
@@ -368,21 +382,116 @@ public sealed class TerminalSurface : Control
         _promptSnapshot = null;
         DrawOutputSelection(context, frame);
 
+        // أثناء عمل برنامج يحل مؤشره على شاشته الحية محل سطر أربش.
+        bool programAttached = _viewModel.IsProgramAttached;
         foreach (TerminalDrawInstruction instruction in frame.Instructions)
         {
             if (instruction.IsPromptLine)
             {
-                DrawPromptLine(context, instruction);
+                if (!programAttached)
+                {
+                    DrawPromptLine(context, instruction);
+                }
+
                 continue;
             }
 
             DrawOutputLine(context, instruction);
         }
 
-        if (IsFocused && _promptSnapshot is not null)
+        if (IsFocused && programAttached)
+        {
+            DrawProgramCursor(context, frame);
+        }
+        else if (IsFocused && _promptSnapshot is not null)
         {
             DrawCaret(context, _promptSnapshot);
         }
+    }
+
+    /// <summary>
+    /// يرسل مفتاحًا إلى البرنامج الجاري. تبقى للطرفية: التكبير، وShift مع PageUp/PageDown للتمرير،
+    /// وCtrl+C مع وجود تحديد للنسخ، وCtrl+V للصق، وCtrl+Break لإيقاف الأمر وشجرته قسرًا.
+    /// </summary>
+    private async Task<bool> HandleProgramKeyAsync(KeyEventArgs e, bool ctrl, bool shift)
+    {
+        if (_viewModel is null)
+        {
+            return false;
+        }
+
+        if ((ctrl && e.Key is Key.Add or Key.OemPlus or Key.Subtract or Key.OemMinus or Key.D0 or Key.NumPad0)
+            || (shift && e.Key is Key.PageUp or Key.PageDown)
+            || (ctrl && e.Key == Key.C && _outputSelection.HasSelection))
+        {
+            return false;
+        }
+
+        if (e.Key == Key.Cancel)
+        {
+            _viewModel.CancelExecution();
+            e.Handled = true;
+            return true;
+        }
+
+        if (ctrl && e.Key == Key.V)
+        {
+            string? text = TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard
+                ? await clipboard.TryGetTextAsync()
+                : null;
+            if (!string.IsNullOrEmpty(text))
+            {
+                _viewModel.SendProgramInput(TerminalKeyEncoder.EncodePaste(text, _viewModel.LiveView.BracketedPaste));
+            }
+
+            e.Handled = true;
+            return true;
+        }
+
+        string? sequence = TerminalKeyEncoder.Encode(e.Key, e.KeyModifiers, _viewModel.LiveView.ApplicationCursorKeys);
+        if (sequence is null || !_viewModel.SendProgramInput(sequence))
+        {
+            return false;
+        }
+
+        _outputSelection.Clear();
+        _scrollbackOffsetLines = 0;
+        e.Handled = true;
+        return true;
+    }
+
+    private void DrawProgramCursor(DrawingContext context, TerminalFrameLayout frame)
+    {
+        VtLiveView view = _viewModel!.LiveView;
+        if (view.CursorLine < 0)
+        {
+            return;
+        }
+
+        int lineIndex = _viewModel.LiveLineStart + view.CursorLine;
+        TerminalDrawInstruction? instruction = frame.Instructions
+            .FirstOrDefault(candidate => !candidate.IsPromptLine && candidate.LogicalLineIndex == lineIndex);
+        if (instruction is null)
+        {
+            return;
+        }
+
+        double cursorX = instruction.Position.X;
+        string text = instruction.Run.VisualText;
+        if (text.Length > 0)
+        {
+            FlowDirection flow = IsTextRtl(text) ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            TextLayout layout = _renderConfig.CreateTextLayout(text, instruction.Brush, flow);
+            if (layout.TextLines.Count > 0)
+            {
+                var hit = new CharacterHit(Math.Clamp(view.CursorIndex, 0, text.Length), 0);
+                cursorX += layout.TextLines[0].GetDistanceFromCharacterHit(hit);
+            }
+        }
+
+        cursorX = Math.Clamp(cursorX, _renderConfig.Padding.Left, Math.Max(_renderConfig.Padding.Left, Bounds.Width - _renderConfig.Padding.Right));
+        var cursorRect = new Rect(cursorX, instruction.Position.Y + 2, 2, Math.Max(6, _renderConfig.LineHeight - 6));
+        context.DrawRectangle(_renderConfig.PromptBrush, null, cursorRect);
     }
 
     private void DrawPromptLine(DrawingContext context, TerminalDrawInstruction instruction)
