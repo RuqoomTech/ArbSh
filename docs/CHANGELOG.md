@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exit, and `arbsh -c` waits for them before exiting.
 
 ### Fixed
+- **Console host on pipes**: When its output is redirected (Qalam's panel, a
+  file), `arbsh --interactive` writes Arabic in logical order instead of
+  console-shaped visual order, and skips the weak-terminal warning, so the
+  host can apply its own BiDi.
 - **Windows tree ownership race**: A program that exits before ArbSh assigns
   it to its Job Object no longer reports «تعذر امتلاك شجرة الأمر الخارجي».
 

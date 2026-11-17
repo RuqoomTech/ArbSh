@@ -56,7 +56,7 @@ public sealed class ConsoleExecutionSink : IExecutionSink
 
         try
         {
-            string displayText = BiDiTextProcessor.ContainsArabicText(message)
+            string displayText = !System.Console.IsOutputRedirected && BiDiTextProcessor.ContainsArabicText(message)
                 ? ConsoleRTLDisplay.ProcessTextForRTLDisplay(message)
                 : message;
 

@@ -54,7 +54,8 @@ namespace ArbSh.Console
             else
             {
                 var consoleInfo = ConsoleEnvironment.DetectConsoleEnvironment();
-                if (consoleInfo.ArabicSupport == ConsoleEnvironment.ArabicSupportLevel.Poor)
+                if (consoleInfo.ArabicSupport == ConsoleEnvironment.ArabicSupportLevel.Poor
+                    && !System.Console.IsOutputRedirected)
                 {
                     ConsoleRTLDisplay.DisplayRTLText("⚠️  تحذير: المحطة الحالية لا تدعم النص العربي بشكل جيد", rightAlign: true);
                     ConsoleRTLDisplay.DisplayRTLText("💡 نصيحة: استخدم Windows Terminal للحصول على أفضل عرض للنص العربي", rightAlign: true);

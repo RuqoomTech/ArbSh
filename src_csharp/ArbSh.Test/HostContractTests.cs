@@ -216,6 +216,21 @@ public sealed class HostContractTests
         Assert.Contains("arbsh --version", error);
     }
 
+    [Fact]
+    public async Task Process_InteractiveOnPipes_KeepsArabicInLogicalOrderForTheHost()
+    {
+        (int code, byte[] output, string error) = await RunArbShWithInputAsync(
+            "اطبع 'مرحبا عالم'\nاخرج\n",
+            "--interactive");
+
+        string text = Encoding.UTF8.GetString(output);
+        Assert.Equal(HostExitCodes.Success, code);
+        Assert.Contains("مرحبا عالم", text);
+        Assert.Contains("مرحباً بكم في أربش", text);
+        Assert.DoesNotContain("تحذير", text);
+        Assert.Empty(error);
+    }
+
     private static HostCommandLine Command(string command) => new(HostMode.Command, Command: command);
 
     private static (int Code, string Output, string Error) Run(
@@ -228,7 +243,12 @@ public sealed class HostContractTests
         return (code, output.ToString(), error.ToString());
     }
 
-    private static async Task<(int Code, byte[] Output, string Error)> RunArbShAsync(params string[] arguments)
+    private static Task<(int Code, byte[] Output, string Error)> RunArbShAsync(params string[] arguments) =>
+        RunArbShWithInputAsync(string.Empty, arguments);
+
+    private static async Task<(int Code, byte[] Output, string Error)> RunArbShWithInputAsync(
+        string input,
+        params string[] arguments)
     {
         var startInfo = new ProcessStartInfo(ResolveDotNetHost())
         {
@@ -245,6 +265,7 @@ public sealed class HostContractTests
         }
 
         using Process process = Process.Start(startInfo)!;
+        await process.StandardInput.BaseStream.WriteAsync(new UTF8Encoding(false).GetBytes(input));
         process.StandardInput.Close();
         using var output = new MemoryStream();
         Task copy = process.StandardOutput.BaseStream.CopyToAsync(output);

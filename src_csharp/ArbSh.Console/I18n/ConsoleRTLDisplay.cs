@@ -158,6 +158,13 @@ namespace ArbSh.Console.I18n
                 return;
             }
 
+            // A host reading our output (Qalam's panel, a file) does its own BiDi, so keep logical order.
+            if (System.Console.IsOutputRedirected)
+            {
+                System.Console.WriteLine(text);
+                return;
+            }
+
             // Process text for display (BiDi + shaping)
             string processedText = ProcessTextForRTLDisplay(text);
             
