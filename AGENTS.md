@@ -21,9 +21,9 @@
   Runs Avalonia GUI terminal.
 - `dotnet test src_csharp/ArbSh.Test/ArbSh.Test.csproj`  
   Runs xUnit tests.
-- `.\create-release.ps1 -Version "0.8.1-alpha"`  
+- `.\create-release.ps1 -Version "0.9.0"`  
   Produces release zip.
-- `.\create-release.ps1 -Version "0.8.1-alpha" -CreateInstaller`  
+- `.\create-release.ps1 -Version "0.9.0" -CreateInstaller`  
   Produces release zip + the standalone Inno Setup installer.
 - `.\scripts\build_installer.ps1` / `scripts/build_linux_packages.sh`  
   Build the Windows installer / Linux packages into `dist/`.

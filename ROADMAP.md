@@ -1,6 +1,6 @@
 # ArbSh Development Roadmap
 
-**Current Version:** 0.8.1-alpha (Phase 6 Kickoff)
+**Current Version:** 0.9.0
 **Status:** Phase 6 In Progress - Live Process Output Implemented
 **Next Step:** Linux CI Receipt and Interactive PTY/ConPTY
 

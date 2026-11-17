@@ -273,7 +273,7 @@ arbsh --help
 snake_case ونص عربي غير مهرب:
 
 ```text
-{"type":"start","schema_version":"arbsh-events-v1","arbsh_version":"0.8.1-alpha","working_directory":"C:\\مشروع"}
+{"type":"start","schema_version":"arbsh-events-v1","arbsh_version":"0.9.0","working_directory":"C:\\مشروع"}
 {"type":"output","text":"مرحبا"}
 {"type":"error","text":"..."}
 {"type":"warning","text":"..."}

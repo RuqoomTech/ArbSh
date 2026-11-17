@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-17
+
 ### Fixed
 - **Output After Resize**: A row of an interactive program's screen now stays
   live while it is on screen and moves to the scrollback only when it scrolls

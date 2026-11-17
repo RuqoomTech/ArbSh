@@ -1,6 +1,6 @@
 # ArbSh Documentation Index
 
-**Current Version:** 0.8.1-alpha
+**Current Version:** 0.9.0
 **Status:** Phase 6 In Progress - External Process and Eco Integration
 **Next Phase:** Freeze `arbsh-host-v1` and implement structured process hosting
 
@@ -98,7 +98,7 @@ Comprehensive technical documentation for the Unicode BiDi Algorithm (UAX #9) im
 ## 📝 Documentation Maintenance
 
 **Current Standards:**
-- Maintained documents reflect version 0.8.1-alpha status
+- Maintained documents reflect version 0.9.0 status
 - Technical accuracy verified against working implementation
 - Examples tested with actual ArbSh shell
 - Arabic-first philosophy consistently represented
