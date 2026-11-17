@@ -41,6 +41,22 @@ public class ShellInputTests
         Assert.Equal(expected, Parser.IsIncomplete(input));
     }
 
+    [Theory]
+    [InlineData("اعرض &", true, "اعرض")]
+    [InlineData("اعرض | الأوامر  &  ", true, "اعرض | الأوامر")]
+    [InlineData("اطبع 'أ &'", false, "")]
+    [InlineData("اطبع 'أ' # تعليق &", false, "")]
+    [InlineData("&", false, "")]
+    [InlineData("اعرض", false, "")]
+    public void TrySplitBackground_RecognizesOnlyATrailingAmpersandOutsideQuotes(string input, bool expected, string command)
+    {
+        Assert.Equal(expected, Parser.TrySplitBackground(input, out string actual));
+        if (expected)
+        {
+            Assert.Equal(command, actual);
+        }
+    }
+
     [Fact]
     public void History_NavigatesBackAndForwardAndRestoresTheDraft()
     {

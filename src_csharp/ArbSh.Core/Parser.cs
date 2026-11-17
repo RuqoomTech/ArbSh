@@ -139,6 +139,17 @@ namespace ArbSh.Core
         }
 
         /// <summary>
+        /// هل ينتهي الإدخال بـ«&» خارج الاقتباس والتعليق؟ يعيد الأمر بدونها ليعمل في الخلفية.
+        /// </summary>
+        public static bool TrySplitBackground(string input, out string command)
+        {
+            ArgumentNullException.ThrowIfNull(input);
+            string scanned = Scan(input, out bool incomplete).TrimEnd();
+            command = scanned.Length > 0 ? scanned[..^1].Trim() : string.Empty;
+            return !incomplete && scanned.EndsWith('&') && command.Length > 0;
+        }
+
+        /// <summary>
         /// هل الإدخال ناقص ينتظر سطرًا آخر: اقتباس أو قوس لم يُغلق، أو «|» في آخره.
         /// </summary>
         public static bool IsIncomplete(string input)

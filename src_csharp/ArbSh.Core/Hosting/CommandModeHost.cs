@@ -102,6 +102,8 @@ public static class CommandModeHost
                 session,
                 externalProcessRunner,
                 cancellationToken);
+            // لا تبقى عملية بعد أربش: ينتظر مهام «&» قبل الخروج، ويوقفها عند الإلغاء.
+            session.Jobs.WaitAll(cancellationToken, TimeSpan.FromSeconds(5));
             exitCode = session.LastExitCode;
         }
         catch (Exception exception)

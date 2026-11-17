@@ -90,6 +90,7 @@ public partial class MainWindow : Window
         }
 
         _tabs.RemoveAt(index);
+        tab.Session.Shutdown();
         _surfaceHost.Children.Remove(tab.Surface);
         tab.Surface.DataContext = null;
 
@@ -128,6 +129,17 @@ public partial class MainWindow : Window
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        // إغلاق النافذة بزرها لا يمر بـ CloseTab؛ لا تبقى مهمة خلفية بعدها.
+        foreach (TerminalTab tab in _tabs)
+        {
+            tab.Session.Shutdown();
+        }
+
+        base.OnClosed(e);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

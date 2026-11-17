@@ -225,6 +225,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return true;
     }
 
+    /// <summary>
+    /// ينهي الجلسة قبل إغلاق تبويبها: يلغي أمر المقدمة ويوقف مهام الخلفية وأشجار عملياتها.
+    /// </summary>
+    public void Shutdown()
+    {
+        _activeExecution?.Cancel();
+        _session.Jobs.StopAll(TimeSpan.FromSeconds(2));
+    }
+
     internal void PostLine(string message, TerminalLineKind kind)
     {
         if (string.IsNullOrWhiteSpace(message))

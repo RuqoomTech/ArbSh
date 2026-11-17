@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Background Jobs**: A trailing `&` runs the command as a background job on
+  a copy of the session (its `انتقل` does not move the foreground) and returns
+  the prompt at once, announcing `[n] بدأت` and later `[n] انتهت بالرمز ...` or
+  `[n] أُوقفت`. `المهام` lists the session's jobs and `أوقف n` (Arabic-Indic or
+  Western digits) stops one with its process tree. ArbSh.Terminal stops a
+  tab's jobs when the tab or window closes, the console host stops them on
+  exit, and `arbsh -c` waits for them before exiting.
+
 ## [0.9.0] - 2026-11-17
 
 ### Fixed

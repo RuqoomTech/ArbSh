@@ -28,6 +28,11 @@ namespace ArbSh.Core
         /// </summary>
         public int LastExitCode { get; internal set; }
 
+        /// <summary>
+        /// مهام الخلفية التي بدأتها الجلسة بـ«&»؛ يوقفها المضيف قبل أن يغلق الجلسة.
+        /// </summary>
+        public BackgroundJobs Jobs { get; } = new();
+
         private static string ResolveInitialDirectory(string? initialDirectory)
         {
             if (!string.IsNullOrWhiteSpace(initialDirectory))

@@ -267,6 +267,87 @@ public sealed class ExternalCommandIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task BackgroundJob_RunsWhileTheForegroundContinuesAndStopsOnRequest()
+    {
+        string root = CreateTempDirectory();
+        string readyFile = Path.Combine(root, "مهمة جاهزة.txt");
+        var sink = new CaptureSink();
+        var session = new ShellSessionState(root);
+        string command = JoinCommand(ResolveDotNetHost(), FixtureAssemblyPath, "wait", readyFile);
+
+        try
+        {
+            ShellEngine.ExecuteInput(command + " &", sink, session: session);
+
+            BackgroundJob job = Assert.Single(session.Jobs.List());
+            Assert.Equal(command, job.Command);
+            Assert.Equal(0, session.LastExitCode);
+            await WaitForFileAsync(readyFile, TimeSpan.FromSeconds(10));
+
+            // المقدمة حرة والمهمة ما زالت تعمل.
+            ShellEngine.ExecuteInput("المهام", sink, session: session);
+            Assert.Contains($"[1] تعمل: {command}", Snapshot(sink));
+
+            ShellEngine.ExecuteInput("أوقف ١", sink, session: session);
+            await job.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(BackgroundJobState.Stopped, job.State);
+            Assert.Equal(130, job.ExitCode);
+            Assert.Equal($"[1] بدأت: {command}", Snapshot(sink)[0]);
+            Assert.Contains($"[1] أُوقفت: {command}", Snapshot(sink));
+
+            ShellEngine.ExecuteInput("أوقف 1", sink, session: session);
+            Assert.Contains("المهمة [1] منتهية بالفعل.", Snapshot(sink));
+            ShellEngine.ExecuteInput("أوقف ٧", sink, session: session);
+            Assert.Contains(sink.Errors, line => line.Contains("لا توجد مهمة خلفية بالرقم", StringComparison.Ordinal));
+        }
+        finally
+        {
+            session.Jobs.StopAll(TimeSpan.FromSeconds(10));
+            TryDeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task BackgroundJob_UsesACopyOfTheSessionAndReportsItsExitCode()
+    {
+        string root = CreateTempDirectory();
+        string child = Path.Combine(root, "فرعي");
+        Directory.CreateDirectory(child);
+        var sink = new CaptureSink();
+        var session = new ShellSessionState(root);
+
+        try
+        {
+            ShellEngine.ExecuteInput($"انتقل '{child}'; المسار &", sink, session: session);
+            await Assert.Single(session.Jobs.List()).Completion.WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.Equal(Path.GetFullPath(root), Path.GetFullPath(session.CurrentDirectory));
+            Assert.Contains(Path.GetFullPath(child), Snapshot(sink));
+            Assert.Contains($"[1] انتهت بالرمز 0: انتقل '{child}'; المسار", Snapshot(sink));
+        }
+        finally
+        {
+            TryDeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void CommandMode_WaitsForBackgroundJobsBeforeExiting()
+    {
+        string command = JoinCommand(ResolveDotNetHost(), FixtureAssemblyPath, "streams", "خرج المهمة", "", "0");
+        var output = new StringWriter();
+
+        int code = CommandModeHost.Run(new HostCommandLine(HostMode.Command, Command: command + " &"), output, new StringWriter());
+
+        Assert.Equal(0, code);
+        Assert.Contains("خرج المهمة", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains($"[1] انتهت بالرمز 0: {command}", output.ToString(), StringComparison.Ordinal);
+    }
+
+    private static List<string> Snapshot(CaptureSink sink) => sink.OutputSnapshot();
+
     private static string FixtureAssemblyPath => typeof(ProcessFixtureMarker).Assembly.Location;
 
     private static string JoinCommand(params string[] arguments)
@@ -366,6 +447,14 @@ public sealed class ExternalCommandIntegrationTests
         public List<string> Debugs { get; } = [];
 
         public Task<string> FirstOutput => _firstOutput.Task;
+
+        public List<string> OutputSnapshot()
+        {
+            lock (_sync)
+            {
+                return [.. Outputs];
+            }
+        }
 
         public void WriteOutput(string message)
         {

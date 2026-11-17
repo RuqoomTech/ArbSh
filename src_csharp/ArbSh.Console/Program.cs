@@ -116,6 +116,7 @@ namespace ArbSh.Console
             }
             finally
             {
+                session.Jobs.StopAll(TimeSpan.FromSeconds(5));
                 ArabicConsoleInput.Cleanup();
                 if (!System.Console.IsInputRedirected)
                 {

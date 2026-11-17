@@ -30,6 +30,11 @@ namespace ArbSh.Core
         }
 
         /// <summary>
+        /// مهام الخلفية للجلسة النشطة، أو null خارج جلسة.
+        /// </summary>
+        internal static BackgroundJobs? Jobs => CurrentState.Value?.Jobs;
+
+        /// <summary>
         /// رمز خروج آخر عبارة في الجلسة النشطة.
         /// </summary>
         internal static int LastExitCode
