@@ -1,4 +1,4 @@
-using ArbSh.Core;
+﻿using ArbSh.Core;
 using ArbSh.Core.Eco;
 using ArbSh.Core.Processes;
 
@@ -439,10 +439,12 @@ public sealed class EcoRunTests
                 "صحيح الرئيسية() {\n    صحيح س = ٠.\n    اطبع \"أدخل رقماً\".\n    اقرأ س.\n    اطبع س + ١.\n    إرجع ٠.\n}\n");
             var console = new InteractiveConsole();
             var sink = new CaptureSink();
-            // لا يُكتب الرقم إلا بعد ظهور الموجه العربي من البرنامج الحي.
-            sink.OnOutput = line =>
+            // لا يُكتب الرقم إلا بعد ظهور الموجه العربي على الشاشة الحية؛ لا يُسلَّم قبل انتهاء البرنامج.
+            int answered = 0;
+            console.ScreenChanged += (_, _) =>
             {
-                if (line.Contains("أدخل رقماً", StringComparison.Ordinal))
+                if (console.GetLiveLines().Any(line => line.Contains("أدخل رقماً", StringComparison.Ordinal))
+                    && Interlocked.Exchange(ref answered, 1) == 0)
                 {
                     console.TrySendLine("41");
                 }
@@ -528,16 +530,12 @@ public sealed class EcoRunTests
 
         public List<string> Errors { get; } = [];
 
-        public Action<string>? OnOutput { get; set; }
-
         public void WriteOutput(string message)
         {
             lock (_sync)
             {
                 Outputs.Add(message);
             }
-
-            OnOutput?.Invoke(message);
         }
 
         public void WriteError(string message)
