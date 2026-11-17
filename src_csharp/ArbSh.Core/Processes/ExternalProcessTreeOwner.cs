@@ -166,7 +166,8 @@ internal static class ExternalProcessTreeOwner
             try
             {
                 ConfigureKillOnClose(jobHandle);
-                if (!AssignProcessToJobObject(jobHandle, process.SafeHandle))
+                // A program that exits before it is assigned leaves an empty job, as on POSIX above.
+                if (!AssignProcessToJobObject(jobHandle, process.SafeHandle) && !process.HasExited)
                 {
                     throw new Win32Exception(
                         Marshal.GetLastWin32Error(),

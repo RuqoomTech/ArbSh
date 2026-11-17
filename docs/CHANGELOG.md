@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tab's jobs when the tab or window closes, the console host stops them on
   exit, and `arbsh -c` waits for them before exiting.
 
+### Fixed
+- **Windows tree ownership race**: A program that exits before ArbSh assigns
+  it to its Job Object no longer reports «تعذر امتلاك شجرة الأمر الخارجي».
+
 ## [0.9.0] - 2026-11-17
 
 ### Fixed
