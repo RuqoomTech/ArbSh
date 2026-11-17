@@ -2,7 +2,7 @@
 
 This document provides comprehensive examples for all implemented features in ArbSh - the Arabic-first shell.
 
-**Current Version:** 0.9.0
+**Current Version:** 0.9.1
 **Status:** Phase 6 In Progress - Windows/Linux Process Ownership Implemented
 **Next Step:** Linux CI Receipt, Live Streams, and PTY/ConPTY
 
@@ -784,12 +784,12 @@ ArbSh> مساعدة
 .\scripts\build_installer.ps1
 
 # Silent per-user install, then a new terminal sees arbsh on PATH
-.\dist\installer\arbsh-setup-0.9.0-x64.exe /VERYSILENT /CURRENTUSER
+.\dist\installer\arbsh-setup-0.9.1-x64.exe /VERYSILENT /CURRENTUSER
 ```
 ```bash
 # Linux: .deb and .tar.gz in dist/packages/
 scripts/build_linux_packages.sh
-sudo apt-get install ./dist/packages/arbsh_0.9.0-1_amd64.deb
+sudo apt-get install ./dist/packages/arbsh_0.9.1-1_amd64.deb
 ```
 
 يضع المثبت `arbsh` وحده في مجلد على PATH، والطرفية في مجلد مستقل، ويضيف

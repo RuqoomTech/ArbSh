@@ -4,7 +4,7 @@
 
 # ArbSh - Arabic-First Shell
 
-**Current Version:** 0.9.0
+**Current Version:** 0.9.1
 **Status:** Phase 6 In Progress - Live Process Output Implemented
 **Next Step:** Linux CI Receipt and Interactive PTY/ConPTY
 
@@ -58,7 +58,7 @@ uses the same core and process behavior.
   chrome, a compact live working-directory display, execution status, shortcut
   hints, larger terminal typography, and a focused welcome surface
 
-## 🚀 Current Status (Version 0.9.0)
+## 🚀 Current Status (Version 0.9.1)
 
 ### ✅ Phase 5 Complete: Custom GUI Terminal Baseline
 
@@ -184,7 +184,7 @@ A PowerShell script (`create-release.ps1`) automates release creation:
 
 2. **Run the release script:**
    ```powershell
-   .\create-release.ps1 -Version "0.9.0"
+   .\create-release.ps1 -Version "0.9.1"
    ```
 
 This creates a self-contained release build and packages it into `releases/` directory.

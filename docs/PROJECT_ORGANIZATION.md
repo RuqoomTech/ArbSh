@@ -4,7 +4,7 @@
 
 This document defines the current architecture of **ArbSh** as an Arabic-first shell and terminal platform.
 
-**Current Version:** 0.9.0
+**Current Version:** 0.9.1
 **Status:** Phase 6 In Progress - Windows/Linux Process Ownership Implemented
 **Next Step:** Linux CI Receipt, Live Streams, and PTY/ConPTY
 

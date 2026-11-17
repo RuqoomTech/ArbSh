@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-17
+
 ### Added
 - **Background Jobs**: A trailing `&` runs the command as a background job on
   a copy of the session (its `انتقل` does not move the foreground) and returns

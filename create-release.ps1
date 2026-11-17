@@ -13,7 +13,7 @@
      and an optional Explorer "open here" entry that passes --working-dir.
 
 .PARAMETER Version
-  Release version string (e.g. 0.9.0).
+  Release version string (e.g. 0.9.1).
 
 .PARAMETER RuntimeID
   Target runtime identifier (default: win-x64).

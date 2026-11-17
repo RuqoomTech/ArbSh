@@ -5,7 +5,7 @@
 #define MyAppId "{{37388BF3-5853-4720-90FD-AB45B9B9E7A7}"
 #define MyAppName "أربش"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.9.0"
+  #define MyAppVersion "0.9.1"
 #endif
 #ifndef ArbShCommandDir
   #define ArbShCommandDir "dist\payload\bin"
